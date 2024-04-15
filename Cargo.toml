@@ -1,0 +1,32 @@
+[package]
+name = "bevy_daz"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["Danny McGee <dannymcgee@gmailcom>"]
+
+[dependencies]
+anyhow = { workspace = true }
+bevy = { workspace = true }
+
+[workspace]
+resolver = "2"
+members = [
+	"crates/*",
+]
+
+[workspace.dependencies]
+anyhow = "1.0.75"
+
+[workspace.dependencies.bevy]
+version = "0.13.2"
+features = [
+	"dynamic_linking",
+]
+
+[profile.dev-custom]
+inherits = "dev"
+opt-level = 1
+
+[profile.dev-custom.package."*"]
+opt-level = 3
