@@ -1,0 +1,18 @@
+[package]
+name = "daz_asset_types"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["Danny McGee <dannymcgee@gmailcom>"]
+
+[features]
+default = []
+glam = []
+bevy = []
+
+[dependencies]
+anyhow = { workspace = true }
+paste = "1.0.14"
+regex = "1.10.4"
+serde = { version = "1.0.192", features = ["derive"] }
+serde_json = "1.0.108"
