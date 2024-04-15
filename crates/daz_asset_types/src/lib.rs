@@ -1,6 +1,10 @@
 use serde::Deserialize;
 use serde_json as json;
 
+mod asset_info;
+
+pub use asset_info::{AssetInfo, Contributor};
+
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Array<T> {
 	pub count: usize,
@@ -20,7 +24,7 @@ pub struct Daz {
 	/// parsing the file, in the form “major.minor.revision”.
 	pub file_version: String,
 	/// A base-level asset_info object to apply to all assets within the file.
-	pub asset_info: json::Value, // TODO
+	pub asset_info: AssetInfo,
 	/// An array of geometry assets defined in this file.
 	pub geometry_library: Option<Vec<json::Value>>, // TODO
 	/// An array of node assets defined in this file.
