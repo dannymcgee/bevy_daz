@@ -433,6 +433,22 @@ fn visualize_bones(
 			// Blender-style octahedron
 			let to_tail = (tail - head).normalize_or_zero();
 			if !nearly_zero(to_tail) {
+				// The Daz bone orientations aren't consistent wrt which of the
+				// transform's axes points toward the "tail". To draw the edge loop
+				// around the body of the octahedron, we need to do the following
+				// for each bone:
+				//
+				// 1. Figure out which of the bone transform's basis vectors points
+				//    toward the tail (we can sort by `basis_vector dot to_tail`;
+				//    the smallest value is the one that's roughly parallel)
+				// 2. Create a 3x3 rotation matrix where the Y axis is the one
+				//    pointing toward the tail, and the X and Z are any of the other
+				//    two basis vectors of the original matrix
+				// 3. Create a set of vertex positions for each point on the
+				//    octahedron's edge loop, as if the "head" were at (0,0,0) and
+				//    the "tail" were at (0,1,0)
+				// 4. Use the rotation matrix and head position in world-space to
+				//    move those four points into the correct world-space positions
 				let mut basis_vectors: SmallVec<[Vec3; 3]> = smallvec![
 					world_xform.affine().x_axis.into(),
 					world_xform.affine().y_axis.into(),
