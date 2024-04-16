@@ -7,11 +7,19 @@ authors = ["Danny McGee <dannymcgee@gmailcom>"]
 
 [features]
 default = []
-glam = []
-bevy = []
+glam = [
+	"dep:glam",
+]
+bevy = [
+	"dep:bevy_math",
+	"dep:bevy_render",
+]
 
 [dependencies]
 anyhow = { workspace = true }
+bevy_math = { version = "0.13", optional = true }
+bevy_render = { version = "0.13", optional = true }
+glam = { version = "0.25", optional = true }
 chrono = { version = "0.4.38", features = ["serde"] }
 paste = "1.0.14"
 regex = "1.10.4"
