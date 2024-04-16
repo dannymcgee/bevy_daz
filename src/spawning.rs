@@ -154,7 +154,7 @@ fn spawn_daz_assets(
 					.map(|id| spawned_entities[id])
 					.collect::<Vec<_>>();
 
-				let mut skinned_mesh = if !joints.is_empty() {
+				let skinned_mesh = if !joints.is_empty() {
 					let inverse_bindposes = daz_mesh
 						.joints
 						.iter()
@@ -190,8 +190,8 @@ fn spawn_daz_assets(
 						})
 						.id();
 
-					if let Some(skinned_mesh) = skinned_mesh.take() {
-						cmd.entity(mesh_entity).insert(skinned_mesh);
+					if let Some(skinned_mesh) = skinned_mesh.as_ref() {
+						cmd.entity(mesh_entity).insert(skinned_mesh.clone());
 					}
 
 					cmd.entity(node_entity).add_child(mesh_entity);
