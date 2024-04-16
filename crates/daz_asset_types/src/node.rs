@@ -1,6 +1,11 @@
 use serde::Deserialize;
 use serde_json as json;
 
+#[cfg(feature = "bevy")]
+use bevy_math::{EulerRot, Quat};
+#[cfg(all(feature = "glam", not(feature = "bevy")))]
+use glam::{EulerRot, Quat};
+
 use crate::channel::ChannelFloat;
 
 use super::util::strenum;
@@ -182,6 +187,55 @@ fn general_scale_default() -> ChannelFloat {
 		.with_min(-10000.)
 		.with_max(10000.)
 		.with_step_size(0.005)
+}
+
+impl Node {
+	#[cfg(any(feature = "bevy", feature = "glam"))]
+	pub fn orientation_quat(&self) -> Quat {
+		self.as_quat(&self.orientation)
+	}
+
+	#[cfg(any(feature = "bevy", feature = "glam"))]
+	pub fn rotation_quat(&self) -> Quat {
+		self.as_quat(&self.rotation)
+	}
+
+	#[cfg(any(feature = "bevy", feature = "glam"))]
+	fn as_quat(&self, eulers: &[ChannelFloat; 3]) -> Quat {
+		use smallvec::SmallVec;
+
+		let &[x, y, z] = eulers
+			.iter()
+			.map(|channel| f32::from(channel).to_radians())
+			.collect::<SmallVec<[f32; 3]>>()
+			.as_slice()
+		else {
+			unreachable!()
+		};
+
+		match EulerRot::from(self.rotation_order) {
+			order @ EulerRot::XYZ => Quat::from_euler(order, x, y, z),
+			order @ EulerRot::YZX => Quat::from_euler(order, y, z, x),
+			order @ EulerRot::ZYX => Quat::from_euler(order, z, y, x),
+			order @ EulerRot::ZXY => Quat::from_euler(order, z, x, y),
+			order @ EulerRot::XZY => Quat::from_euler(order, x, z, y),
+			order @ EulerRot::YXZ => Quat::from_euler(order, y, x, z),
+		}
+	}
+}
+
+#[cfg(any(feature = "bevy", feature = "glam"))]
+impl From<RotationOrder> for EulerRot {
+	fn from(value: RotationOrder) -> Self {
+		match value {
+			RotationOrder::XYZ => EulerRot::XYZ,
+			RotationOrder::YZX => EulerRot::YZX,
+			RotationOrder::ZYX => EulerRot::ZYX,
+			RotationOrder::ZXY => EulerRot::ZXY,
+			RotationOrder::XZY => EulerRot::XZY,
+			RotationOrder::YXZ => EulerRot::YXZ,
+		}
+	}
 }
 
 strenum! { NodeType
