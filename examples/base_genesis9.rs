@@ -462,7 +462,13 @@ fn visualize_bones(
 						.unwrap()
 				});
 
-				let rotator = Mat3::from_cols(basis_vectors[0], to_tail, basis_vectors[1]);
+				// The shoulder bones' orientations aren't actually aligned with
+				// their head -> tail vectors, which introduces some skew. This
+				// honestly isn't a big deal, but I've already gone this far, so
+				// let's orthogonalize the other two basis vectors for good measure.
+				let basis_x = basis_vectors[0].cross(to_tail);
+				let basis_z = basis_x.cross(to_tail);
+				let rotator = Mat3::from_cols(basis_x, to_tail, basis_z);
 
 				let fl = vec3(-1., 1., -1.) * (bone_len / 10.);
 				let fr = vec3(1., 1., -1.) * (bone_len / 10.);
