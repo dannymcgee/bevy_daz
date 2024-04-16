@@ -4,6 +4,7 @@ use serde_json as json;
 mod asset_info;
 mod channel;
 mod geometry;
+mod modifier;
 mod node;
 mod util;
 mod uv_set;
@@ -11,6 +12,7 @@ mod uv_set;
 pub use asset_info::{AssetInfo, Contributor};
 pub use channel::{ChannelFloat, ChannelType};
 pub use geometry::{EdgeInterpolationMode, Geometry, GeometryType, Polygon};
+pub use modifier::{Modifier, SkinBinding, WeightedJoint};
 pub use node::{Node, NodeType, RotationOrder};
 pub use uv_set::UvSet;
 
@@ -25,11 +27,12 @@ pub struct Array<T> {
 
 /// A DAZ object is the top level object in a DSON format file.
 ///
-/// ### Details
+/// ## Details
+///
 /// A file must contain one or more of any of the `*_library` elements and/or a
 /// `scene`.
 ///
-/// http://docs.daz3d.com/doku.php/public/dson_spec/object_definitions/daz/start
+/// * [Reference](http://docs.daz3d.com/doku.php/public/dson_spec/object_definitions/daz/start)
 #[derive(Clone, Debug, Deserialize)]
 pub struct Daz {
 	/// A string indicating the file format schema version to be used when
@@ -48,8 +51,8 @@ pub struct Daz {
 	/// An array of [UvSet] assets defined in this file.
 	pub uv_set_library: Option<Vec<UvSet>>,
 
-	/// An array of modifier assets defined in this file.
-	pub modifier_library: Option<Vec<json::Value>>, // TODO
+	/// An array of [Modifier] assets defined in this file.
+	pub modifier_library: Option<Vec<Modifier>>,
 
 	/// An array of image assets defined in this file.
 	pub image_library: Option<Vec<json::Value>>, // TODO
