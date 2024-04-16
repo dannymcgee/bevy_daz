@@ -2,11 +2,13 @@ use bevy::app::{PluginGroup, PluginGroupBuilder};
 
 mod asset;
 mod io;
+mod runtime;
 mod spawning;
 
 pub use crate::{
 	asset::{DazAsset, DazAssetTypesPlugin, DazMesh, DazNode, DazPrimitive, DazUvSet},
 	io::{DazAssetReader, DazAssetSourcePlugin},
+	runtime::DazRuntimePlugin,
 	spawning::{DazBone, DazFigure, DazSpawningPlugin},
 };
 pub use daz_asset_types::NodeType;
@@ -18,5 +20,6 @@ impl PluginGroup for DazPlugins {
 		PluginGroupBuilder::start::<Self>()
 			.add(DazAssetTypesPlugin)
 			.add(DazSpawningPlugin)
+			.add(DazRuntimePlugin)
 	}
 }
