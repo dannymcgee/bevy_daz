@@ -7,8 +7,11 @@ authors = ["Danny McGee <dannymcgee@gmailcom>"]
 
 [dependencies]
 anyhow = { workspace = true }
+async-fs = "2.1.1"
 bevy = { workspace = true }
 daz_asset_types = { path = "crates/daz_asset_types", features = ["bevy"] }
+futures-lite = "2.3.0"
+merge-streams = "0.1.2"
 regex = "1.10.4"
 serde = { workspace = true }
 serde_json = { workspace = true }
