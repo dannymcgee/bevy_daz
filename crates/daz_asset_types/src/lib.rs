@@ -6,11 +6,13 @@ mod channel;
 mod geometry;
 mod node;
 mod util;
+mod uv_set;
 
 pub use asset_info::{AssetInfo, Contributor};
 pub use channel::{ChannelFloat, ChannelType};
 pub use geometry::{EdgeInterpolationMode, Geometry, GeometryType, Polygon};
 pub use node::{Node, NodeType, RotationOrder};
+pub use uv_set::UvSet;
 
 #[cfg(any(feature = "bevy", feature = "glam"))]
 pub use channel::ChannelsAsVec3;
@@ -43,8 +45,8 @@ pub struct Daz {
 	/// An array of [Node] assets defined in this file.
 	pub node_library: Option<Vec<Node>>,
 
-	/// An array of uv_set assets defined in this file.
-	pub uv_set_library: Option<Vec<json::Value>>, // TODO
+	/// An array of [UvSet] assets defined in this file.
+	pub uv_set_library: Option<Vec<UvSet>>,
 
 	/// An array of modifier assets defined in this file.
 	pub modifier_library: Option<Vec<json::Value>>, // TODO
