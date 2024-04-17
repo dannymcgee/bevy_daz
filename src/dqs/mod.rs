@@ -1,7 +1,7 @@
 use std::ops;
 
 use bevy::{
-	math::{Affine3A, Vec3A},
+	math::{Affine3A, Mat3A, Vec3A},
 	prelude::*,
 };
 
@@ -14,6 +14,7 @@ impl DualQuat {
 		Quat::from_xyzw(0., 0., 0., 0.),
 	);
 
+	#[inline(always)]
 	pub fn from_rotation_translation(rotation: Quat, translation: Vec3) -> Self {
 		let real = rotation;
 		let Vec3 { x, y, z } = translation;
@@ -22,26 +23,42 @@ impl DualQuat {
 		Self(real, dual)
 	}
 
+	#[inline(always)]
 	pub fn real(&self) -> Quat {
 		self.0
 	}
 
+	#[inline(always)]
 	pub fn dual(&self) -> Quat {
 		self.1
 	}
 
+	#[inline(always)]
 	pub fn dot(self, rhs: DualQuat) -> f32 {
 		self.real().dot(rhs.real())
 	}
 
+	#[inline(always)]
 	pub fn magnitude_squared(self) -> f32 {
 		self.real().length_squared()
 	}
 
+	#[inline(always)]
+	pub fn length_squared(self) -> f32 {
+		self.magnitude_squared()
+	}
+
+	#[inline(always)]
 	pub fn magnitude(self) -> f32 {
 		self.real().length()
 	}
 
+	#[inline(always)]
+	pub fn length(self) -> f32 {
+		self.magnitude()
+	}
+
+	#[inline(always)]
 	pub fn normalize(self) -> Self {
 		let mag = self.magnitude();
 		assert!(
@@ -61,39 +78,65 @@ impl DualQuat {
 		Self(self.real() / mag, self.dual() / mag)
 	}
 
+	#[inline(always)]
 	pub fn conjugate(self) -> Self {
 		Self(self.real().conjugate(), self.dual().conjugate())
 	}
 
+	#[inline(always)]
 	pub fn rotation(self) -> Quat {
 		self.real().normalize()
 	}
 
+	#[inline(always)]
 	pub fn translation(self) -> Vec3 {
 		((self.dual() * 2.0) * self.real().conjugate()).xyz()
 	}
 
-	pub fn transform_point(&self, point: Vec3A) -> Vec3A {
-		let mag = self.magnitude();
-		let real = self.real() / mag;
-		let dual = self.dual() / mag;
+	#[inline(always)]
+	pub fn transform_point3(&self, point: Vec3) -> Vec3 {
+		self.transform_point3a(point.into()).into()
+	}
+
+	#[inline(always)]
+	pub fn transform_point3a(&self, point: Vec3A) -> Vec3A {
+		assert!(
+			(self.length() - 1.0).abs() <= 1.0e-5,
+			"DualQuat must be normalized before being used as a transform! \
+			Attempted to transform point with a DualQuat with magnitude {}",
+			self.length()
+		);
+		let real = self.real();
+		let dual = self.dual();
 
 		let real_xyz = Vec3A::from(real.xyz());
 		let dual_xyz = Vec3A::from(dual.xyz());
-		#[rustfmt::skip]
-		let translated = (dual_xyz*real.w - real_xyz*dual.w + real_xyz.cross(dual_xyz)) * 2.;
+
+		let translated = (dual_xyz * real.w - real_xyz * dual.w + real_xyz.cross(dual_xyz)) * 2.;
 		let rotated = real * point;
 
 		rotated + translated
 	}
 
-	pub fn rotate_vector(&self, vector: Vec3A) -> Vec3A {
-		let real = self.real().normalize();
-		real * vector
+	#[inline(always)]
+	pub fn transform_vector3(&self, vector: Vec3) -> Vec3 {
+		self.transform_vector3a(vector.into()).into()
+	}
+
+	#[inline(always)]
+	pub fn transform_vector3a(&self, vector: Vec3A) -> Vec3A {
+		assert!(
+			(self.length() - 1.0).abs() <= 1.0e-5,
+			"DualQuat must be normalized before being used as a transform! \
+			Attempted to rotate vector with a DualQuat with magnitude {}",
+			self.length()
+		);
+		self.real() * vector
 	}
 }
 
 impl Default for DualQuat {
+	#[inline(always)]
 	fn default() -> Self {
 		Self::IDENTITY
 	}
@@ -102,6 +145,7 @@ impl Default for DualQuat {
 impl ops::Mul<f32> for DualQuat {
 	type Output = DualQuat;
 
+	#[inline(always)]
 	fn mul(self, rhs: f32) -> DualQuat {
 		DualQuat(self.real() * rhs, self.dual() * rhs)
 	}
@@ -110,6 +154,7 @@ impl ops::Mul<f32> for DualQuat {
 impl ops::Mul<DualQuat> for f32 {
 	type Output = DualQuat;
 
+	#[inline(always)]
 	fn mul(self, rhs: DualQuat) -> DualQuat {
 		rhs * self
 	}
@@ -118,6 +163,7 @@ impl ops::Mul<DualQuat> for f32 {
 impl ops::Add for DualQuat {
 	type Output = DualQuat;
 
+	#[inline(always)]
 	fn add(self, rhs: DualQuat) -> DualQuat {
 		DualQuat(self.real() + rhs.real(), self.dual() + rhs.dual())
 	}
@@ -126,6 +172,7 @@ impl ops::Add for DualQuat {
 impl ops::Mul for DualQuat {
 	type Output = DualQuat;
 
+	#[inline(always)]
 	fn mul(self, rhs: DualQuat) -> DualQuat {
 		DualQuat(
 			self.real() * rhs.real(),
@@ -135,24 +182,28 @@ impl ops::Mul for DualQuat {
 }
 
 impl From<DualQuat> for Affine3A {
+	#[inline(always)]
 	fn from(dq: DualQuat) -> Self {
 		Self::from_rotation_translation(dq.rotation(), dq.translation())
 	}
 }
 
 impl From<DualQuat> for Mat4 {
+	#[inline(always)]
 	fn from(value: DualQuat) -> Self {
 		Mat4::from(Affine3A::from(value))
 	}
 }
 
 impl From<DualQuat> for GlobalTransform {
+	#[inline(always)]
 	fn from(value: DualQuat) -> Self {
 		GlobalTransform::from(Affine3A::from(value))
 	}
 }
 
 impl From<Affine3A> for DualQuat {
+	#[inline(always)]
 	fn from(value: Affine3A) -> Self {
 		let (_, rotation, translation) = value.to_scale_rotation_translation();
 		Self::from_rotation_translation(rotation, translation)
@@ -160,6 +211,7 @@ impl From<Affine3A> for DualQuat {
 }
 
 impl From<Mat4> for DualQuat {
+	#[inline(always)]
 	fn from(value: Mat4) -> Self {
 		#[rustfmt::skip]
 		let [
@@ -170,18 +222,21 @@ impl From<Mat4> for DualQuat {
 		] = value.to_cols_array();
 
 		#[rustfmt::skip]
-		let affine = Affine3A::from_cols_array(&[
-			m11, m12, m13,
-			m21, m22, m23,
-			m31, m32, m33,
-			m41, m42, m43,
-		]);
+		let affine = Affine3A {
+			matrix3: Mat3A::from_cols_array(&[
+				m11, m12, m13,
+				m21, m22, m23,
+				m31, m32, m33,
+			]),
+			translation: Vec3A::new(m41, m42, m43),
+		};
 
 		Self::from(affine)
 	}
 }
 
 impl From<GlobalTransform> for DualQuat {
+	#[inline(always)]
 	fn from(value: GlobalTransform) -> Self {
 		Self::from(value.affine())
 	}
