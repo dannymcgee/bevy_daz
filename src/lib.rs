@@ -11,7 +11,9 @@ pub use crate::{
 	runtime::DazRuntimePlugin,
 	spawning::{DazBone, DazFigure, DazSpawningPlugin},
 };
-pub use bevy_dqskinning::DualQuat;
+pub use bevy_dqskinning::{
+	DqSkinnedMesh, DqsInverseBindposes, DqsMaterialExt, DqsStandardMaterial, DualQuat,
+};
 pub use daz_asset_types::NodeType;
 
 pub struct DazPlugins;

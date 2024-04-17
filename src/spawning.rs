@@ -1,11 +1,9 @@
 use std::collections::VecDeque;
 
-use bevy::{
-	ecs::entity::EntityHashSet,
-	math::Affine3A,
-	prelude::*,
-	render::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes},
-	utils::HashMap,
+use bevy::{ecs::entity::EntityHashSet, pbr::ExtendedMaterial, prelude::*, utils::HashMap};
+use bevy_dqskinning::{
+	DqSkinnedMesh, DqSkinningPlugin, DqsInverseBindposes, DqsMaterialExt, DqsStandardMaterial,
+	DualQuat,
 };
 
 use crate::{DazAsset, DazMesh, DazNode, NodeType};
@@ -14,6 +12,8 @@ pub struct DazSpawningPlugin;
 
 impl Plugin for DazSpawningPlugin {
 	fn build(&self, app: &mut App) {
+		app.add_plugins(DqSkinningPlugin);
+
 		app.insert_resource(DazSpawner::default());
 
 		app.register_type::<DazFigure>();
@@ -36,7 +36,7 @@ pub struct DazFigure;
 #[reflect(Component)]
 pub struct DazBone {
 	pub end_point: Vec3,
-	pub inverse_bindpose: Affine3A,
+	pub inverse_bindpose: DualQuat,
 }
 
 fn queue_asset_spawns(
@@ -56,8 +56,8 @@ fn spawn_daz_assets(
 	ra_daz_assets: Res<Assets<DazAsset>>,
 	ra_daz_nodes: Res<Assets<DazNode>>,
 	ra_daz_meshes: Res<Assets<DazMesh>>,
-	mut ra_inverse_bindposes: ResMut<Assets<SkinnedMeshInverseBindposes>>,
-	mut ra_standard_mats: ResMut<Assets<StandardMaterial>>,
+	mut ra_inverse_bindposes: ResMut<Assets<DqsInverseBindposes>>,
+	mut ra_dqstandard_mats: ResMut<Assets<DqsStandardMaterial>>,
 	q_daz_assets: Query<&Handle<DazAsset>>,
 	mut l_assets_to_spawn: Local<Vec<Entity>>,
 ) {
@@ -125,7 +125,8 @@ fn spawn_daz_assets(
 				if node.type_ == NodeType::Bone {
 					cmd.entity(entity).insert(DazBone {
 						end_point: node.end_point,
-						inverse_bindpose: node.root_transform.affine().inverse(),
+						// TODO: Avoid doing this computation twice for each joint
+						inverse_bindpose: node.root_transform.affine().inverse().into(),
 					});
 				}
 
@@ -157,14 +158,15 @@ fn spawn_daz_assets(
 					let inverse_bindposes = daz_mesh
 						.joints
 						.iter()
-						// Note: Could do `root_transform.compute_matrix().inverse()`,
-						//       but Affine3As are significantly cheaper to invert
-						.map(|id| Mat4::from(spawned_nodes[id].root_transform.affine().inverse()))
+						.map(|id| {
+							// TODO: Avoid doing this computation twice for each joint
+							DualQuat::from(spawned_nodes[id].root_transform.affine().inverse())
+						})
 						.collect::<Vec<_>>();
 
 					let handle = ra_inverse_bindposes.add(inverse_bindposes);
 
-					Some(SkinnedMesh {
+					Some(DqSkinnedMesh {
 						inverse_bindposes: handle,
 						joints,
 					})
@@ -177,12 +179,15 @@ fn spawn_daz_assets(
 						.spawn(MaterialMeshBundle {
 							mesh: primitive.mesh.clone(),
 							material: primitive.material.clone().unwrap_or_else(|| {
-								ra_standard_mats.add(StandardMaterial {
-									base_color: Color::hex("AAAAAA").unwrap(),
-									metallic: 0.,
-									perceptual_roughness: 0.55,
-									reflectance: 0.45,
-									..default()
+								ra_dqstandard_mats.add(ExtendedMaterial {
+									base: StandardMaterial {
+										base_color: Color::hex("AAAAAA").unwrap(),
+										metallic: 0.,
+										perceptual_roughness: 0.55,
+										reflectance: 0.45,
+										..default()
+									},
+									extension: DqsMaterialExt::default(),
 								})
 							}),
 							..default()

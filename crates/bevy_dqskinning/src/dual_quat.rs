@@ -2,10 +2,11 @@ use std::ops;
 
 use bevy::{
 	math::{Affine3A, Mat3A, Mat4, Quat, Vec3, Vec3A},
+	reflect::Reflect,
 	transform::components::GlobalTransform,
 };
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Reflect)]
 pub struct DualQuat(pub Quat, pub Quat);
 
 impl DualQuat {

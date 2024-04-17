@@ -3,17 +3,20 @@ use std::collections::VecDeque;
 use bevy::{
 	core_pipeline::experimental::taa::{TemporalAntiAliasBundle, TemporalAntiAliasPlugin},
 	ecs::entity::EntityHashMap,
-	math::{vec3, Affine3A, Vec3A},
+	math::{vec3, Vec3A},
 	pbr::PointLightShadowMap,
 	prelude::*,
 	render::{
 		camera::Exposure,
-		mesh::{skinning::SkinnedMesh, Indices, VertexAttributeValues},
+		mesh::{Indices, VertexAttributeValues},
 	},
 	utils::smallvec::{smallvec, SmallVec},
 	window::PresentMode,
 };
-use bevy_daz::{DazAsset, DazAssetSourcePlugin, DazBone, DazFigure, DazPlugins, DualQuat};
+use bevy_daz::{
+	DazAsset, DazAssetSourcePlugin, DazBone, DazFigure, DazPlugins, DqSkinnedMesh, DqsMaterialExt,
+	DualQuat,
+};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
@@ -477,7 +480,7 @@ fn gather_mesh_data(
 	r_config: Res<OverlayVisualizations>,
 	ra_meshes: Res<Assets<Mesh>>,
 	q_meshes: Query<(Entity, &Handle<Mesh>)>,
-	q_skinned_mesh: Query<&SkinnedMesh>,
+	q_skinned_mesh: Query<&DqSkinnedMesh>,
 	q_joints: Query<(&Name, &GlobalTransform, &DazBone)>,
 ) /*-> Option<Vec<MeshData>>*/
 {
@@ -493,8 +496,8 @@ fn gather_mesh_data(
 			let positions = mesh.attribute(Mesh::ATTRIBUTE_POSITION)?;
 			let normals = mesh.attribute(Mesh::ATTRIBUTE_NORMAL)?;
 			let indices = mesh.indices()?;
-			let joint_indices = mesh.attribute(Mesh::ATTRIBUTE_JOINT_INDEX)?;
-			let joint_weights = mesh.attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT)?;
+			let joint_indices = mesh.attribute(DqsMaterialExt::ATTRIBUTE_JOINT_INDEX)?;
+			let joint_weights = mesh.attribute(DqsMaterialExt::ATTRIBUTE_JOINT_WEIGHT)?;
 
 			use VertexAttributeValues::*;
 			let Float32x3(positions) = positions else {
@@ -536,13 +539,9 @@ fn gather_mesh_data(
 			.copied()
 			.map(|entity| {
 				let (_, world_xform, bone) = q_joints.get(entity).unwrap();
-				(
-					entity,
-					(
-						DualQuat::from(*world_xform),
-						DualQuat::from(bone.inverse_bindpose),
-					),
-				)
+				let joint_xform = DualQuat::from(*world_xform) * bone.inverse_bindpose;
+
+				(entity, joint_xform)
 			})
 			.collect::<EntityHashMap<_>>();
 
@@ -673,7 +672,7 @@ fn visualize_wireframe(
 fn deform_vertex(
 	data: &MeshData,
 	joints: &[Entity],
-	dual_quats: &EntityHashMap<(DualQuat, DualQuat)>,
+	dual_quats: &EntityHashMap<DualQuat>,
 	vert_idx: usize,
 	pos: Vec3A,
 	norm: Vec3A,
@@ -690,22 +689,20 @@ fn deform_vertex(
 			(joint_ent, weight)
 		});
 
-	let dq_sum = weights.fold(None, |accum: Option<DualQuat>, (joint, weight)| {
+	let xform_sum = weights.fold(None, |accum: Option<DualQuat>, (joint, weight)| {
 		if weight.abs() <= 1.0e-3 {
 			return accum;
 		}
 
-		let (xform, inverse_bindpose) = dual_quats[&joint];
-		let combined_xform = xform * inverse_bindpose;
-
+		let xform = dual_quats[&joint];
 		if let Some(acc_xform) = accum {
-			Some(acc_xform + combined_xform * weight)
+			Some(acc_xform + xform * weight)
 		} else {
-			Some(combined_xform * weight)
+			Some(xform * weight)
 		}
 	});
 
-	let xform_sum = dq_sum.unwrap_or_default();
+	let xform_sum = xform_sum.unwrap_or_default();
 
 	if xform_sum.magnitude() <= 1.0e-3 {
 		return (pos, norm);
