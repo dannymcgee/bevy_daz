@@ -15,6 +15,7 @@ members = [
 anyhow = { workspace = true }
 async-fs = "2.1.1"
 bevy = { workspace = true }
+bevy_dqskinning = { path = "crates/bevy_dqskinning" }
 daz_asset_types = { path = "crates/daz_asset_types", features = ["bevy"] }
 futures-lite = "2.3.0"
 merge-streams = "0.1.2"
