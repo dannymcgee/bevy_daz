@@ -1,23 +1,21 @@
 mod dual_quat;
 mod material;
-
-use std::ops::Deref;
+mod skin;
+mod skinning;
 
 use bevy::{
-	app::{App, Plugin},
-	asset::{Asset, AssetApp, Handle},
-	ecs::{
-		component::Component,
-		entity::{Entity, EntityMapper, MapEntities},
-		reflect::{ReflectComponent, ReflectMapEntities},
-	},
+	app::{App, Plugin, PostUpdate},
+	asset::AssetApp,
+	ecs::schedule::IntoSystemConfigs,
 	pbr::MaterialPlugin,
-	reflect::{Reflect, TypePath},
+	render::{ExtractSchedule, Render, RenderApp, RenderSet},
 };
+use skin::{DqSkinIndices, DqSkinUniform};
 
 pub use crate::{
 	dual_quat::DualQuat,
 	material::{DqsMaterialExt, DqsStandardMaterial},
+	skinning::{DqSkinnedMesh, DqsInverseBindposes},
 };
 
 pub struct DqSkinningPlugin;
@@ -30,37 +28,18 @@ impl Plugin for DqSkinningPlugin {
 		app.init_asset::<DqsInverseBindposes>();
 
 		app.add_plugins(MaterialPlugin::<DqsStandardMaterial>::default());
-	}
-}
 
-#[derive(Component, Clone, Debug, Default, Reflect)]
-#[reflect(Component, MapEntities)]
-pub struct DqSkinnedMesh {
-	pub inverse_bindposes: Handle<DqsInverseBindposes>,
-	pub joints: Vec<Entity>,
-}
+		app.add_systems(PostUpdate, crate::skin::no_automatic_skin_batching);
 
-impl MapEntities for DqSkinnedMesh {
-	fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
-		for joint in self.joints.iter_mut() {
-			*joint = entity_mapper.map_entity(*joint);
+		if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
+			render_app
+				.init_resource::<DqSkinUniform>()
+				.init_resource::<DqSkinIndices>()
+				.add_systems(ExtractSchedule, crate::skin::extract_skins)
+				.add_systems(
+					Render,
+					crate::skin::prepare_skins.in_set(RenderSet::PrepareResources),
+				);
 		}
-	}
-}
-
-#[derive(Asset, TypePath, Debug)]
-pub struct DqsInverseBindposes(pub Box<[DualQuat]>);
-
-impl From<Vec<DualQuat>> for DqsInverseBindposes {
-	fn from(value: Vec<DualQuat>) -> Self {
-		Self(value.into_boxed_slice())
-	}
-}
-
-impl Deref for DqsInverseBindposes {
-	type Target = [DualQuat];
-
-	fn deref(&self) -> &Self::Target {
-		&self.0
 	}
 }
