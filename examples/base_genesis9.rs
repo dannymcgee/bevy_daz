@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 use bevy::{
 	core_pipeline::experimental::taa::{TemporalAntiAliasBundle, TemporalAntiAliasPlugin},
+	ecs::entity::EntityHashMap,
 	math::{vec3, Affine3A, Vec3A},
 	pbr::PointLightShadowMap,
 	prelude::*,
@@ -529,6 +530,21 @@ fn gather_mesh_data(
 
 	for data in mesh_data {
 		let skinned_mesh = q_skinned_mesh.get(data.entity).unwrap();
+		let joints = &skinned_mesh.joints;
+		let dual_quats = joints
+			.iter()
+			.copied()
+			.map(|entity| {
+				let (_, world_xform, bone) = q_joints.get(entity).unwrap();
+				(
+					entity,
+					(
+						DualQuat::from(*world_xform),
+						DualQuat::from(bone.inverse_bindpose),
+					),
+				)
+			})
+			.collect::<EntityHashMap<_>>();
 
 		for face in data.indices.chunks_exact(6) {
 			let &[i0, i1, i2, _, _, i3] = face else {
@@ -547,7 +563,7 @@ fn gather_mesh_data(
 			let (v0, n0) = deform_vertex(
 				&data,
 				&skinned_mesh.joints,
-				&q_joints,
+				&dual_quats,
 				i0,
 				v0.into(),
 				n0.into(),
@@ -555,7 +571,7 @@ fn gather_mesh_data(
 			let (v1, n1) = deform_vertex(
 				&data,
 				&skinned_mesh.joints,
-				&q_joints,
+				&dual_quats,
 				i1,
 				v1.into(),
 				n1.into(),
@@ -563,7 +579,7 @@ fn gather_mesh_data(
 			let (v2, n2) = deform_vertex(
 				&data,
 				&skinned_mesh.joints,
-				&q_joints,
+				&dual_quats,
 				i2,
 				v2.into(),
 				n2.into(),
@@ -571,7 +587,7 @@ fn gather_mesh_data(
 			let (v3, n3) = deform_vertex(
 				&data,
 				&skinned_mesh.joints,
-				&q_joints,
+				&dual_quats,
 				i3,
 				v3.into(),
 				n3.into(),
@@ -632,7 +648,8 @@ fn visualize_wireframe(
 fn deform_vertex(
 	data: &MeshData,
 	joints: &[Entity],
-	q_joints: &Query<(&Name, &GlobalTransform, &DazBone)>,
+	dual_quats: &EntityHashMap<(DualQuat, DualQuat)>,
+	// q_joints: &Query<(&Name, &GlobalTransform, &DazBone)>,
 	vert_idx: usize,
 	pos: Vec3A,
 	norm: Vec3A,
@@ -640,32 +657,46 @@ fn deform_vertex(
 	let vert_joint_indices = data.joint_indices[vert_idx];
 	let vert_joint_weights = data.joint_weights[vert_idx];
 
-	let mut dq: Option<DualQuat> = None;
+	let weights = vert_joint_indices
+		.iter()
+		.enumerate()
+		.map(|(buffer_idx, joint_idx)| {
+			let weight = vert_joint_weights[buffer_idx];
+			let joint_ent = joints[*joint_idx];
+			(joint_ent, weight)
+		});
 
-	for (buffer_idx, joint_idx) in vert_joint_indices.iter().enumerate() {
-		let weight = vert_joint_weights[buffer_idx];
+	let dq_sums = weights.fold(
+		None,
+		|accum: Option<(DualQuat, DualQuat)>, (joint, weight)| {
+			if weight.abs() <= 1.0e-3 {
+				return accum;
+			}
 
-		if weight.abs() <= f32::EPSILON {
-			continue;
-		}
+			let (xform, inverse_bindpose) = dual_quats[&joint];
+			if let Some((acc_xform, acc_inverse_bindpose)) = accum {
+				Some((
+					acc_xform + xform * weight,
+					acc_inverse_bindpose + inverse_bindpose * weight,
+				))
+			} else {
+				Some((xform * weight, inverse_bindpose * weight))
+			}
+		},
+	);
 
-		let entity = joints[*joint_idx];
-		let (_, world_xform, bone) = q_joints.get(entity).unwrap();
-		let joint_dq = DualQuat::from(world_xform.affine() * bone.inverse_bindpose).normalize();
+	let (xform_sum, inverse_bindpose_sum) =
+		dq_sums.unwrap_or((DualQuat::IDENTITY, DualQuat::IDENTITY));
 
-		if let Some(accum_dq) = dq.as_mut() {
-			*accum_dq = (*accum_dq + (joint_dq * weight)).normalize();
-		} else {
-			dq = Some((joint_dq * weight).normalize());
-		}
+	if xform_sum.magnitude() <= 1.0e-3 || inverse_bindpose_sum.magnitude() <= 1.0e-3 {
+		return (pos, norm);
 	}
 
-	let dq = dq.unwrap_or(DualQuat::IDENTITY);
-	let affine = Affine3A::from(dq);
+	let joint_matrix = Affine3A::from((xform_sum * inverse_bindpose_sum).normalize());
 
 	(
-		affine.transform_point3a(pos),
-		affine.transform_vector3a(norm),
+		joint_matrix.transform_point3a(pos),
+		joint_matrix.transform_vector3a(norm),
 	)
 }
 
