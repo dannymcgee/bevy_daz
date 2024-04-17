@@ -12,11 +12,11 @@ impl DualQuat {
 	);
 
 	pub fn new(real: Quat, dual: Quat) -> Self {
-		Self(real.normalize(), dual)
+		Self(real, dual)
 	}
 
 	pub fn from_rotation_translation(rotation: Quat, translation: Vec3) -> Self {
-		let real = rotation.normalize();
+		let real = rotation;
 		let Vec3 { x, y, z } = translation;
 		let dual = (Quat::from_xyzw(x, y, z, 0.) * real) * 0.5;
 
@@ -35,8 +35,12 @@ impl DualQuat {
 		self.real().dot(rhs.real())
 	}
 
+	pub fn magnitude_squared(self) -> f32 {
+		self.real().length_squared()
+	}
+
 	pub fn magnitude(self) -> f32 {
-		Quat::dot(self.real(), self.real())
+		self.real().length()
 	}
 
 	pub fn normalize(self) -> Self {
@@ -55,11 +59,11 @@ impl DualQuat {
 			self.1.z,
 		);
 
-		Self::new(self.real() / mag, self.dual() / mag)
+		Self(self.real() / mag, self.dual() / mag)
 	}
 
 	pub fn conjugate(self) -> Self {
-		Self::new(self.real().conjugate(), self.dual().conjugate())
+		Self(self.real().conjugate(), self.dual().conjugate())
 	}
 
 	pub fn rotation(self) -> Quat {
@@ -108,7 +112,6 @@ impl ops::Mul for DualQuat {
 
 impl From<DualQuat> for Affine3A {
 	fn from(dq: DualQuat) -> Self {
-		let dq = dq.normalize();
 		Self::from_rotation_translation(dq.rotation(), dq.translation())
 	}
 }
@@ -135,12 +138,12 @@ impl From<Affine3A> for DualQuat {
 impl From<Mat4> for DualQuat {
 	fn from(value: Mat4) -> Self {
 		#[rustfmt::skip]
-		let &[
+		let [
 			m11, m12, m13, _,
 			m21, m22, m23, _,
 			m31, m32, m33, _,
 			m41, m42, m43, _,
-		] = &value.to_cols_array();
+		] = value.to_cols_array();
 
 		#[rustfmt::skip]
 		let affine = Affine3A::from_cols_array(&[
