@@ -714,8 +714,8 @@ fn deform_vertex(
 	let joint_xform = xform_sum.normalize();
 
 	(
-		joint_xform.transform_point(pos),
-		joint_xform.rotate_vector(norm),
+		joint_xform.transform_point3a(pos),
+		joint_xform.transform_vector3a(norm),
 	)
 }
 
