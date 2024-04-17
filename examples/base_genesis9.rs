@@ -2,17 +2,17 @@ use std::collections::VecDeque;
 
 use bevy::{
 	core_pipeline::experimental::taa::{TemporalAntiAliasBundle, TemporalAntiAliasPlugin},
-	math::vec3,
+	math::{vec3, Affine3A, Vec3A},
 	pbr::PointLightShadowMap,
 	prelude::*,
 	render::{
 		camera::Exposure,
-		mesh::{Indices, VertexAttributeValues},
+		mesh::{skinning::SkinnedMesh, Indices, VertexAttributeValues},
 	},
 	utils::smallvec::{smallvec, SmallVec},
 	window::PresentMode,
 };
-use bevy_daz::{DazAsset, DazAssetSourcePlugin, DazBone, DazFigure, DazPlugins};
+use bevy_daz::{DazAsset, DazAssetSourcePlugin, DazBone, DazFigure, DazPlugins, DualQuat};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
@@ -177,8 +177,10 @@ impl Plugin for DebugVisualiztionsPlugin {
 			Update,
 			(
 				configure_visualizations,
-				gather_mesh_data.pipe(visualize_mesh_data),
+				// gather_mesh_data.pipe(visualize_mesh_data),
+				gather_mesh_data,
 				visualize_bones,
+				animate_left_arm,
 				update_ui,
 			),
 		);
@@ -428,29 +430,70 @@ fn configure_visualizations(
 	}
 }
 
+fn animate_left_arm(
+	r_time: Res<Time>,
+	q_figure: Query<&Children, With<DazFigure>>,
+	q_children: Query<&Children>,
+	q_names: Query<&Name>,
+	mut q_xform: Query<&mut Transform>,
+	mut l_left_arm: Local<Option<Entity>>,
+) {
+	if l_left_arm.is_none() {
+		let g9 = q_figure.single().iter().copied().find(|&ent| {
+			let name = q_names.get(ent);
+			name.is_ok() && name.unwrap().as_str() == "Genesis9"
+		});
+
+		let Some(g9) = g9 else {
+			return;
+		};
+
+		*l_left_arm = q_children.iter_descendants(g9).find(|&ent| {
+			let name = q_names.get(ent);
+			name.is_ok() && name.unwrap().as_str() == "l_upperarm"
+		});
+	}
+
+	if let Some(left_arm) = l_left_arm.as_ref().copied() {
+		use std::f32::consts;
+		let mut xform = q_xform.get_mut(left_arm).unwrap();
+		xform.rotation =
+			Quat::from_rotation_z(consts::FRAC_PI_3 * (r_time.elapsed_seconds() * 2.).sin());
+	}
+}
+
 struct MeshData {
+	entity: Entity,
 	positions: Vec<Vec3>,
 	normals: Vec<Vec3>,
 	indices: Vec<usize>,
+	joint_indices: Vec<[usize; 4]>,
+	joint_weights: Vec<[f32; 4]>,
 }
 
 fn gather_mesh_data(
+	mut gizmos: Gizmos<WireframeGizmoGroup>,
 	r_config: Res<OverlayVisualizations>,
 	ra_meshes: Res<Assets<Mesh>>,
-	q_meshes: Query<&Handle<Mesh>>,
-) -> Option<Vec<MeshData>> {
+	q_meshes: Query<(Entity, &Handle<Mesh>)>,
+	q_skinned_mesh: Query<&SkinnedMesh>,
+	q_joints: Query<(&Name, &GlobalTransform, &DazBone)>,
+) /*-> Option<Vec<MeshData>>*/
+{
 	if !r_config.wireframe && !r_config.normals {
-		return None;
+		return;
 	}
 
 	let mesh_data = q_meshes
 		.iter()
-		.filter_map(|mesh_handle| {
+		.filter_map(|(entity, mesh_handle)| {
 			let mesh = ra_meshes.get(mesh_handle)?;
 
 			let positions = mesh.attribute(Mesh::ATTRIBUTE_POSITION)?;
 			let normals = mesh.attribute(Mesh::ATTRIBUTE_NORMAL)?;
 			let indices = mesh.indices()?;
+			let joint_indices = mesh.attribute(Mesh::ATTRIBUTE_JOINT_INDEX)?;
+			let joint_weights = mesh.attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT)?;
 
 			use VertexAttributeValues::*;
 			let Float32x3(positions) = positions else {
@@ -462,16 +505,86 @@ fn gather_mesh_data(
 			let Indices::U32(indices) = indices else {
 				return None;
 			};
+			let Uint16x4(joint_indices) = joint_indices else {
+				return None;
+			};
+			let Float32x4(joint_weights) = joint_weights else {
+				return None;
+			};
 
 			Some(MeshData {
+				entity,
 				positions: positions.iter().copied().map(Vec3::from).collect(),
 				normals: normals.iter().copied().map(Vec3::from).collect(),
 				indices: indices.iter().copied().map(|idx| idx as usize).collect(),
+				joint_indices: joint_indices
+					.iter()
+					.copied()
+					.map(|[a, b, c, d]| [a as usize, b as usize, c as usize, d as usize])
+					.collect(),
+				joint_weights: joint_weights.clone(),
 			})
 		})
-		.collect();
+		.collect::<Vec<_>>();
 
-	Some(mesh_data)
+	for data in mesh_data {
+		let skinned_mesh = q_skinned_mesh.get(data.entity).unwrap();
+
+		for face in data.indices.chunks_exact(6) {
+			let &[i0, i1, i2, _, _, i3] = face else {
+				continue;
+			};
+			let v0 = data.positions[i0];
+			let v1 = data.positions[i1];
+			let v2 = data.positions[i2];
+			let v3 = data.positions[i3];
+
+			let n0 = data.normals[i0];
+			let n1 = data.normals[i1];
+			let n2 = data.normals[i2];
+			let n3 = data.normals[i3];
+
+			let (v0, n0) = deform_vertex(
+				&data,
+				&skinned_mesh.joints,
+				&q_joints,
+				i0,
+				v0.into(),
+				n0.into(),
+			);
+			let (v1, n1) = deform_vertex(
+				&data,
+				&skinned_mesh.joints,
+				&q_joints,
+				i1,
+				v1.into(),
+				n1.into(),
+			);
+			let (v2, n2) = deform_vertex(
+				&data,
+				&skinned_mesh.joints,
+				&q_joints,
+				i2,
+				v2.into(),
+				n2.into(),
+			);
+			let (v3, n3) = deform_vertex(
+				&data,
+				&skinned_mesh.joints,
+				&q_joints,
+				i3,
+				v3.into(),
+				n3.into(),
+			);
+
+			gizmos.line(v0.into(), v1.into(), r_config.wireframe_color);
+			gizmos.line(v1.into(), v2.into(), r_config.wireframe_color);
+			gizmos.line(v2.into(), v3.into(), r_config.wireframe_color);
+			gizmos.line(v3.into(), v0.into(), r_config.wireframe_color);
+		}
+	}
+
+	// Some(mesh_data)
 }
 
 fn visualize_mesh_data(
@@ -516,6 +629,46 @@ fn visualize_wireframe(
 	}
 }
 
+fn deform_vertex(
+	data: &MeshData,
+	joints: &[Entity],
+	q_joints: &Query<(&Name, &GlobalTransform, &DazBone)>,
+	vert_idx: usize,
+	pos: Vec3A,
+	norm: Vec3A,
+) -> (Vec3A, Vec3A) {
+	let vert_joint_indices = data.joint_indices[vert_idx];
+	let vert_joint_weights = data.joint_weights[vert_idx];
+
+	let mut dq: Option<DualQuat> = None;
+
+	for (buffer_idx, joint_idx) in vert_joint_indices.iter().enumerate() {
+		let weight = vert_joint_weights[buffer_idx];
+
+		if weight.abs() <= f32::EPSILON {
+			continue;
+		}
+
+		let entity = joints[*joint_idx];
+		let (_, world_xform, bone) = q_joints.get(entity).unwrap();
+		let joint_dq = DualQuat::from(world_xform.affine() * bone.inverse_bindpose).normalize();
+
+		if let Some(accum_dq) = dq.as_mut() {
+			*accum_dq = (*accum_dq + (joint_dq * weight)).normalize();
+		} else {
+			dq = Some((joint_dq * weight).normalize());
+		}
+	}
+
+	let dq = dq.unwrap_or(DualQuat::IDENTITY);
+	let affine = Affine3A::from(dq);
+
+	(
+		affine.transform_point3a(pos),
+		affine.transform_vector3a(norm),
+	)
+}
+
 fn visualize_normals(
 	data: &[MeshData],
 	gizmos: &mut Gizmos<WireframeGizmoGroup>,
@@ -525,6 +678,7 @@ fn visualize_normals(
 		positions,
 		normals,
 		indices,
+		..
 	} in data
 	{
 		for face in indices.chunks_exact(6) {
