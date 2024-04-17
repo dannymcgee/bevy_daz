@@ -1,19 +1,18 @@
 use std::ops;
 
-use bevy::{math::Affine3A, prelude::*};
+use bevy::{
+	math::{Affine3A, Vec3A},
+	prelude::*,
+};
 
 #[derive(Clone, Copy, Debug)]
-pub struct DualQuat(Quat, Quat);
+pub struct DualQuat(pub Quat, pub Quat);
 
 impl DualQuat {
 	pub const IDENTITY: Self = Self(
 		Quat::from_xyzw(0., 0., 0., 1.),
 		Quat::from_xyzw(0., 0., 0., 0.),
 	);
-
-	pub fn new(real: Quat, dual: Quat) -> Self {
-		Self(real, dual)
-	}
 
 	pub fn from_rotation_translation(rotation: Quat, translation: Vec3) -> Self {
 		let real = rotation;
@@ -67,11 +66,36 @@ impl DualQuat {
 	}
 
 	pub fn rotation(self) -> Quat {
-		self.real()
+		self.real().normalize()
 	}
 
 	pub fn translation(self) -> Vec3 {
 		((self.dual() * 2.0) * self.real().conjugate()).xyz()
+	}
+
+	pub fn transform_point(&self, point: Vec3A) -> Vec3A {
+		let mag = self.magnitude();
+		let real = self.real() / mag;
+		let dual = self.dual() / mag;
+
+		let real_xyz = Vec3A::from(real.xyz());
+		let dual_xyz = Vec3A::from(dual.xyz());
+		#[rustfmt::skip]
+		let translated = (dual_xyz*real.w - real_xyz*dual.w + real_xyz.cross(dual_xyz)) * 2.;
+		let rotated = real * point;
+
+		rotated + translated
+	}
+
+	pub fn rotate_vector(&self, vector: Vec3A) -> Vec3A {
+		let real = self.real().normalize();
+		real * vector
+	}
+}
+
+impl Default for DualQuat {
+	fn default() -> Self {
+		Self::IDENTITY
 	}
 }
 
@@ -79,7 +103,7 @@ impl ops::Mul<f32> for DualQuat {
 	type Output = DualQuat;
 
 	fn mul(self, rhs: f32) -> DualQuat {
-		DualQuat::new(self.real() * rhs, self.dual() * rhs)
+		DualQuat(self.real() * rhs, self.dual() * rhs)
 	}
 }
 
@@ -95,7 +119,7 @@ impl ops::Add for DualQuat {
 	type Output = DualQuat;
 
 	fn add(self, rhs: DualQuat) -> DualQuat {
-		DualQuat::new(self.real() + rhs.real(), self.dual() + rhs.dual())
+		DualQuat(self.real() + rhs.real(), self.dual() + rhs.dual())
 	}
 }
 
@@ -103,7 +127,7 @@ impl ops::Mul for DualQuat {
 	type Output = DualQuat;
 
 	fn mul(self, rhs: DualQuat) -> DualQuat {
-		DualQuat::new(
+		DualQuat(
 			self.real() * rhs.real(),
 			(self.real() * rhs.dual()) + (self.dual() * rhs.real()),
 		)
