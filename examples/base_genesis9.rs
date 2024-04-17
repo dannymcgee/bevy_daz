@@ -593,10 +593,35 @@ fn gather_mesh_data(
 				n3.into(),
 			);
 
-			gizmos.line(v0.into(), v1.into(), r_config.wireframe_color);
-			gizmos.line(v1.into(), v2.into(), r_config.wireframe_color);
-			gizmos.line(v2.into(), v3.into(), r_config.wireframe_color);
-			gizmos.line(v3.into(), v0.into(), r_config.wireframe_color);
+			if r_config.wireframe {
+				gizmos.line(v0.into(), v1.into(), r_config.wireframe_color);
+				gizmos.line(v1.into(), v2.into(), r_config.wireframe_color);
+				gizmos.line(v2.into(), v3.into(), r_config.wireframe_color);
+				gizmos.line(v3.into(), v0.into(), r_config.wireframe_color);
+			}
+
+			if r_config.normals {
+				gizmos.line(
+					v0.into(),
+					(v0 + n0 * r_config.normals_length).into(),
+					r_config.normals_color,
+				);
+				gizmos.line(
+					v1.into(),
+					(v1 + n1 * r_config.normals_length).into(),
+					r_config.normals_color,
+				);
+				gizmos.line(
+					v2.into(),
+					(v2 + n2 * r_config.normals_length).into(),
+					r_config.normals_color,
+				);
+				gizmos.line(
+					v3.into(),
+					(v3 + n3 * r_config.normals_length).into(),
+					r_config.normals_color,
+				);
+			}
 		}
 	}
 
