@@ -10,6 +10,7 @@ use bevy::{
 		BoxedFuture,
 	},
 };
+use bevy_dqskinning::DqsMaterialExt;
 use daz_asset_types::{ChannelsAsVec3, Daz, Geometry, Modifier, Node, NodeType};
 use regex::{Captures, Regex};
 use serde_json as json;
@@ -354,13 +355,13 @@ fn process_skins(
 		mesh_data.joints = joint_ids.iter().copied().map(|id| id.to_owned()).collect();
 
 		mesh_data.mesh.insert_attribute(
-			Mesh::ATTRIBUTE_JOINT_INDEX,
+			DqsMaterialExt::ATTRIBUTE_JOINT_INDEX,
 			VertexAttributeValues::Uint16x4(vert_joints),
 		);
 
 		mesh_data
 			.mesh
-			.insert_attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT, vert_weights);
+			.insert_attribute(DqsMaterialExt::ATTRIBUTE_JOINT_WEIGHT, vert_weights);
 	}
 }
 
