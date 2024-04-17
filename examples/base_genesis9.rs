@@ -509,7 +509,6 @@ fn deform_vertex(
 	data: &MeshData,
 	joints: &[Entity],
 	dual_quats: &EntityHashMap<(DualQuat, DualQuat)>,
-	// q_joints: &Query<(&Name, &GlobalTransform, &DazBone)>,
 	vert_idx: usize,
 	pos: Vec3A,
 	norm: Vec3A,
@@ -526,37 +525,32 @@ fn deform_vertex(
 			(joint_ent, weight)
 		});
 
-	let dq_sums = weights.fold(
-		None,
-		|accum: Option<(DualQuat, DualQuat)>, (joint, weight)| {
-			if weight.abs() <= 1.0e-3 {
-				return accum;
-			}
+	let dq_sum = weights.fold(None, |accum: Option<DualQuat>, (joint, weight)| {
+		if weight.abs() <= 1.0e-3 {
+			return accum;
+		}
 
-			let (xform, inverse_bindpose) = dual_quats[&joint];
-			if let Some((acc_xform, acc_inverse_bindpose)) = accum {
-				Some((
-					acc_xform + xform * weight,
-					acc_inverse_bindpose + inverse_bindpose * weight,
-				))
-			} else {
-				Some((xform * weight, inverse_bindpose * weight))
-			}
-		},
-	);
+		let (xform, inverse_bindpose) = dual_quats[&joint];
+		let combined_xform = xform * inverse_bindpose;
 
-	let (xform_sum, inverse_bindpose_sum) =
-		dq_sums.unwrap_or((DualQuat::IDENTITY, DualQuat::IDENTITY));
+		if let Some(acc_xform) = accum {
+			Some(acc_xform + combined_xform * weight)
+		} else {
+			Some(combined_xform * weight)
+		}
+	});
 
-	if xform_sum.magnitude() <= 1.0e-3 || inverse_bindpose_sum.magnitude() <= 1.0e-3 {
+	let xform_sum = dq_sum.unwrap_or_default();
+
+	if xform_sum.magnitude() <= 1.0e-3 {
 		return (pos, norm);
 	}
 
-	let joint_matrix = Affine3A::from((xform_sum * inverse_bindpose_sum).normalize());
+	let joint_xform = xform_sum.normalize();
 
 	(
-		joint_matrix.transform_point3a(pos),
-		joint_matrix.transform_vector3a(norm),
+		joint_xform.transform_point(pos),
+		joint_xform.rotate_vector(norm),
 	)
 }
 
