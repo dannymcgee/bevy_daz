@@ -1,21 +1,31 @@
-use std::ops;
+#[cfg(not(target_arch = "spirv"))]
+use core::fmt;
+use core::ops;
 
 use bevy::{
+	core::{Pod, Zeroable},
 	math::{Affine3A, Mat3A, Mat4, Quat, Vec3, Vec3A},
 	reflect::Reflect,
 	transform::components::GlobalTransform,
 };
 
-#[derive(Clone, Copy, Debug, Reflect)]
+#[derive(Clone, Copy)]
+#[cfg_attr(not(target_arch = "spirv"), derive(Reflect))]
+#[repr(C)]
 pub struct DualQuat(pub Quat, pub Quat);
 
 impl DualQuat {
+	pub(crate) const ZERO: Self = Self(
+		Quat::from_xyzw(0., 0., 0., 0.),
+		Quat::from_xyzw(0., 0., 0., 0.),
+	);
+
 	pub const IDENTITY: Self = Self(
 		Quat::from_xyzw(0., 0., 0., 1.),
 		Quat::from_xyzw(0., 0., 0., 0.),
 	);
 
-	#[inline(always)]
+	#[inline]
 	pub fn from_rotation_translation(rotation: Quat, translation: Vec3) -> Self {
 		let real = rotation;
 		let Vec3 { x, y, z } = translation;
@@ -34,12 +44,12 @@ impl DualQuat {
 		self.1
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn dot(self, rhs: DualQuat) -> f32 {
 		self.real().dot(rhs.real())
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn magnitude_squared(self) -> f32 {
 		self.real().length_squared()
 	}
@@ -49,7 +59,7 @@ impl DualQuat {
 		self.magnitude_squared()
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn magnitude(self) -> f32 {
 		self.real().length()
 	}
@@ -59,7 +69,7 @@ impl DualQuat {
 		self.magnitude()
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn normalize(self) -> Self {
 		let mag = self.magnitude();
 		assert!(
@@ -79,17 +89,17 @@ impl DualQuat {
 		Self(self.real() / mag, self.dual() / mag)
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn conjugate(self) -> Self {
 		Self(self.real().conjugate(), self.dual().conjugate())
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn rotation(self) -> Quat {
 		self.real().normalize()
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn translation(self) -> Vec3 {
 		((self.dual() * 2.0) * self.real().conjugate()).xyz()
 	}
@@ -99,7 +109,7 @@ impl DualQuat {
 		self.transform_point3a(point.into()).into()
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn transform_point3a(&self, point: Vec3A) -> Vec3A {
 		assert!(
 			(self.length() - 1.0).abs() <= 1.0e-5,
@@ -124,7 +134,7 @@ impl DualQuat {
 		self.transform_vector3a(vector.into()).into()
 	}
 
-	#[inline(always)]
+	#[inline]
 	pub fn transform_vector3a(&self, vector: Vec3A) -> Vec3A {
 		assert!(
 			(self.length() - 1.0).abs() <= 1.0e-5,
@@ -146,7 +156,7 @@ impl Default for DualQuat {
 impl ops::Mul<f32> for DualQuat {
 	type Output = DualQuat;
 
-	#[inline(always)]
+	#[inline]
 	fn mul(self, rhs: f32) -> DualQuat {
 		DualQuat(self.real() * rhs, self.dual() * rhs)
 	}
@@ -155,7 +165,7 @@ impl ops::Mul<f32> for DualQuat {
 impl ops::Mul<DualQuat> for f32 {
 	type Output = DualQuat;
 
-	#[inline(always)]
+	#[inline]
 	fn mul(self, rhs: DualQuat) -> DualQuat {
 		rhs * self
 	}
@@ -164,7 +174,7 @@ impl ops::Mul<DualQuat> for f32 {
 impl ops::Add for DualQuat {
 	type Output = DualQuat;
 
-	#[inline(always)]
+	#[inline]
 	fn add(self, rhs: DualQuat) -> DualQuat {
 		DualQuat(self.real() + rhs.real(), self.dual() + rhs.dual())
 	}
@@ -173,7 +183,7 @@ impl ops::Add for DualQuat {
 impl ops::Mul for DualQuat {
 	type Output = DualQuat;
 
-	#[inline(always)]
+	#[inline]
 	fn mul(self, rhs: DualQuat) -> DualQuat {
 		DualQuat(
 			self.real() * rhs.real(),
@@ -183,7 +193,7 @@ impl ops::Mul for DualQuat {
 }
 
 impl From<DualQuat> for Affine3A {
-	#[inline(always)]
+	#[inline]
 	fn from(dq: DualQuat) -> Self {
 		Self::from_rotation_translation(dq.rotation(), dq.translation())
 	}
@@ -204,7 +214,7 @@ impl From<DualQuat> for GlobalTransform {
 }
 
 impl From<Affine3A> for DualQuat {
-	#[inline(always)]
+	#[inline]
 	fn from(value: Affine3A) -> Self {
 		let (_, rotation, translation) = value.to_scale_rotation_translation();
 		Self::from_rotation_translation(rotation, translation)
@@ -212,7 +222,7 @@ impl From<Affine3A> for DualQuat {
 }
 
 impl From<Mat4> for DualQuat {
-	#[inline(always)]
+	#[inline]
 	fn from(value: Mat4) -> Self {
 		#[rustfmt::skip]
 		let [
@@ -242,6 +252,48 @@ impl From<GlobalTransform> for DualQuat {
 		Self::from(value.affine())
 	}
 }
+
+#[cfg(not(target_arch = "spirv"))]
+impl AsRef<[f32; 8]> for DualQuat {
+	#[inline]
+	fn as_ref(&self) -> &[f32; 8] {
+		unsafe { &*(self as *const Self as *const [f32; 8]) }
+	}
+}
+
+#[cfg(not(target_arch = "spirv"))]
+impl AsMut<[f32; 8]> for DualQuat {
+	#[inline]
+	fn as_mut(&mut self) -> &mut [f32; 8] {
+		unsafe { &mut *(self as *mut Self as *mut [f32; 8]) }
+	}
+}
+
+#[cfg(not(target_arch = "spirv"))]
+impl fmt::Debug for DualQuat {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_tuple("DualQuat")
+			.field(&self.0)
+			.field(&self.1)
+			.finish()
+	}
+}
+
+#[cfg(not(target_arch = "spirv"))]
+impl fmt::Display for DualQuat {
+	#[rustfmt::skip]
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(
+			f,
+			"(({} [{} {} {}]), ({} [{} {} {}]))",
+			&self.0.w, &self.0.x, &self.0.y, &self.0.z,
+			&self.1.w, &self.1.x, &self.1.y, &self.1.z,
+		)
+	}
+}
+
+unsafe impl Pod for DualQuat {}
+unsafe impl Zeroable for DualQuat {}
 
 #[cfg(test)]
 mod tests {
