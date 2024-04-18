@@ -64,6 +64,19 @@ fn dq_add(lhs: mat2x4<f32>, rhs: mat2x4<f32>) -> mat2x4<f32> {
 	);
 }
 
+/// Dual-quaternion normalization
+fn dq_normalize(dq: mat2x4<f32>) -> mat2x4<f32> {
+	let mag = length(dq.x);
+	if (mag <= 0.001) {
+		return mat2x4<f32>(
+			vec4<f32>(0.0, 0.0, 0.0, 1.0),
+			vec4<f32>(0.0, 0.0, 0.0, 0.0)
+		);
+	}
+
+	return mat2x4<f32>(dq.x / mag, dq.y / mag);
+}
+
 /// Quaternion multiplication
 fn q_mul(lhs: vec4<f32>, rhs: vec4<f32>) -> vec4<f32> {
 	let w = (lhs.w * rhs.w) - dot(lhs.xyz, rhs.xyz);
@@ -75,7 +88,7 @@ fn q_mul(lhs: vec4<f32>, rhs: vec4<f32>) -> vec4<f32> {
 /// Dual-quaternion to 4x4 transform matrix
 fn mat4x4_from_dq(dq: mat2x4<f32>) -> mat4x4<f32> {
 	// Convert the "real" quaternion to a 3x3 rotation matrix
-	let rotation = normalize(dq.x);
+	let rotation = dq.x;
 
 	// Mostly copy-pasted from glam::Mat3A::from_quat
 	let x2 = rotation.x + rotation.x;
@@ -128,7 +141,7 @@ fn skin_model(
 	result = dq_add(result, dq_scale(joint_xforms.data[indices.z], weights.z));
 	result = dq_add(result, dq_scale(joint_xforms.data[indices.w], weights.w));
 
-	return mat4x4_from_dq(result);
+	return mat4x4_from_dq(dq_normalize(result));
 }
 
 fn inverse_transpose_3x3m(in: mat3x3<f32>) -> mat3x3<f32> {
