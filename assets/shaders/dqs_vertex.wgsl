@@ -12,6 +12,7 @@ struct DqSkinnedMesh {
 @group(1) @binding(1)
 var<uniform> joint_xforms: DqSkinnedMesh;
 
+/// Dual-quaternion scale
 fn dq_scale(dq: mat2x4<f32>, scale: f32) -> mat2x4<f32> {
 	return mat2x4<f32>(
 		dq.x * scale,
@@ -19,6 +20,7 @@ fn dq_scale(dq: mat2x4<f32>, scale: f32) -> mat2x4<f32> {
 	);
 }
 
+/// Dual-quaternion addition
 fn dq_add(lhs: mat2x4<f32>, rhs: mat2x4<f32>) -> mat2x4<f32> {
 	return mat2x4<f32>(
 		lhs.x + rhs.x,
@@ -26,6 +28,7 @@ fn dq_add(lhs: mat2x4<f32>, rhs: mat2x4<f32>) -> mat2x4<f32> {
 	);
 }
 
+/// Quaternion multiplication
 fn q_mul(lhs: vec4<f32>, rhs: vec4<f32>) -> vec4<f32> {
 	let w = (lhs.w * rhs.w) - dot(lhs.xyz, rhs.xyz);
 	let xyz = (lhs.w * rhs.xyz) + (rhs.w * lhs.xyz) + cross(lhs.xyz, rhs.xyz);
@@ -33,6 +36,7 @@ fn q_mul(lhs: vec4<f32>, rhs: vec4<f32>) -> vec4<f32> {
 	return vec4<f32>(xyz, w);
 }
 
+/// Dual-quaternion to 4x4 transform matrix
 fn mat4x4_from_dq(dq: mat2x4<f32>) -> mat4x4<f32> {
 	// Convert the "real" quaternion to a 3x3 rotation matrix
 	let rotation = normalize(dq.x);
