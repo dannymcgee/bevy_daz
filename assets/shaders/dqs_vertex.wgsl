@@ -49,7 +49,7 @@ fn mat4x4_from_dq(dq: mat2x4<f32>) -> mat4x4<f32> {
 	let m31_m32_m33 = vec3<f32>(xz+wy, yz-wx, 1.0-(xx+yy));
 
 	// Extract translation vector from the dual-quat
-	let m41_m42_m43 = ((dq.y * 2.0) * vec4<f32>(dq.x.w, -dq.x.xyz)).xyz;
+	let m41_m42_m43 = ((dq.y * 2.0) * vec4<f32>(-dq.x.xyz, dq.x.w)).xyz;
 
 	return mat4x4<f32>(
 		vec4<f32>(m11_m12_m13, 0.0),
