@@ -75,35 +75,9 @@ fn mat4x4_from_dq(dq: mat2x4<f32>) -> mat4x4<f32> {
 	);
 }
 
-/// 4x4 transform matrix to dual-quaternion
-fn dq_from_mat4x4(mat: mat4x4<f32>) -> mat2x4<f32> {
-	let mat3_unscaled = mat3x3<f32>(
-		mat[0].xyz,
-		mat[1].xyz,
-		mat[2].xyz
-	);
-	let det = determinant(mat3_unscaled);
-	if (det <= 0.001) {
-		return mat2x4<f32>(
-			vec4<f32>(0.0, 0.0, 0.0, 1.0),
-			vec4<f32>(0.0, 0.0, 0.0, 0.0)
-		);
-	}
-
-	let scale = vec3<f32>(
-		length(mat3_unscaled[0]) * sign(det),
-		length(mat3_unscaled[1]),
-		length(mat3_unscaled[2])
-	);
-	let inv_scale = 1.0 / scale;
-
-	let mat3 = mat3x3<f32>(
-		mat3_unscaled[0] * inv_scale.x,
-		mat3_unscaled[1] * inv_scale.y,
-		mat3_unscaled[2] * inv_scale.z
-	);
-
-	var real: vec4<f32>;
+/// 3x3 rotation matrix to quaternion
+fn q_from_mat3x3(mat3: mat3x3<f32>) -> vec4<f32> {
+	// Adapted from glam::Quat::from_rotation_axes
 	if (mat3[2].z <= 0.0) {
 		// x^2 + y^2 >= z^2 + w^2
 		let dif10 = mat3[1].y - mat3[0].x;
@@ -112,18 +86,24 @@ fn dq_from_mat4x4(mat: mat4x4<f32>) -> mat2x4<f32> {
 			// x^2 >= y^2
 			let four_xsq = omm22 - dif10;
 			let inv4x = 0.5 / sqrt(four_xsq);
-			real.x = four_xsq * inv4x;
-			real.y = (mat3[0].y + mat3[1].x) * inv4x;
-			real.z = (mat3[0].z + mat3[2].x) * inv4x;
-			real.w = (mat3[1].z - mat3[2].y) * inv4x;
+
+			return vec4<f32>(
+				four_xsq * inv4x,
+				(mat3[0].y + mat3[1].x) * inv4x,
+				(mat3[0].z + mat3[2].x) * inv4x,
+				(mat3[1].z - mat3[2].y) * inv4x
+			);
 		} else {
 			// y^2 >= x^2
 			let four_ysq = omm22 + dif10;
 			let inv4y = 0.5 / sqrt(four_ysq);
-			real.x = (mat3[0].y + mat3[1].x) * inv4y;
-			real.y = four_ysq * inv4y;
-			real.z = (mat3[1].z + mat3[2].y) * inv4y;
-			real.w = (mat3[2].x - mat3[0].z) * inv4y;
+
+			return vec4<f32>(
+				(mat3[0].y + mat3[1].x) * inv4y,
+				four_ysq * inv4y,
+				(mat3[1].z + mat3[2].y) * inv4y,
+				(mat3[2].x - mat3[0].z) * inv4y
+			);
 		}
 	} else {
 		// z^2 + w^2 >= x^2 + y^2
@@ -133,20 +113,57 @@ fn dq_from_mat4x4(mat: mat4x4<f32>) -> mat2x4<f32> {
 			// z^2 >= w^2
 			let four_zsq = opm22 - sum10;
 			let inv4z = 0.5 / sqrt(four_zsq);
-			real.x = (mat3[0].z + mat3[2].x) * inv4z;
-			real.y = (mat3[1].z + mat3[2].y) * inv4z;
-			real.z = four_zsq * inv4z;
-			real.w = (mat3[0].y - mat3[1].x) * inv4z;
+
+			return vec4<f32>(
+				(mat3[0].z + mat3[2].x) * inv4z,
+				(mat3[1].z + mat3[2].y) * inv4z,
+				four_zsq * inv4z,
+				(mat3[0].y - mat3[1].x) * inv4z
+			);
 		} else {
 			// w^2 >= z^2
 			let four_wsq = opm22 + sum10;
 			let inv4w = 0.5 / sqrt(four_wsq);
-			real.x = (mat3[1].z - mat3[2].y) * inv4w;
-			real.y = (mat3[2].x - mat3[0].z) * inv4w;
-			real.z = (mat3[0].y - mat3[1].x) * inv4w;
-			real.w = four_wsq * inv4w;
+
+			return vec4<f32>(
+				(mat3[1].z - mat3[2].y) * inv4w,
+				(mat3[2].x - mat3[0].z) * inv4w,
+				(mat3[0].y - mat3[1].x) * inv4w,
+				four_wsq * inv4w
+			);
 		}
 	}
+}
+
+/// 4x4 transform matrix to dual-quaternion
+fn dq_from_mat4x4(mat: mat4x4<f32>) -> mat2x4<f32> {
+	let mat3_scaled = mat3x3<f32>(
+		mat[0].xyz,
+		mat[1].xyz,
+		mat[2].xyz
+	);
+	let det = determinant(mat3_scaled);
+	if (det <= 0.001) {
+		return mat2x4<f32>(
+			vec4<f32>(0.0, 0.0, 0.0, 1.0),
+			vec4<f32>(0.0, 0.0, 0.0, 0.0)
+		);
+	}
+
+	let scale = vec3<f32>(
+		length(mat3_scaled[0]) * sign(det),
+		length(mat3_scaled[1]),
+		length(mat3_scaled[2])
+	);
+	let inv_scale = 1.0 / scale;
+
+	let mat3 = mat3x3<f32>(
+		mat3_scaled[0] * inv_scale.x,
+		mat3_scaled[1] * inv_scale.y,
+		mat3_scaled[2] * inv_scale.z
+	);
+
+	let real = q_from_mat3x3(mat3);
 
 	let translation = mat[3].xyz;
 	let dual = q_mul(vec4<f32>(translation, 0.0), real) * 0.5;
