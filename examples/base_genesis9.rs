@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use bevy::{
 	core_pipeline::experimental::taa::{TemporalAntiAliasBundle, TemporalAntiAliasPlugin},
 	math::vec3,
@@ -8,6 +10,7 @@ use bevy::{
 		mesh::{Indices, VertexAttributeValues},
 	},
 	utils::smallvec::{smallvec, SmallVec},
+	window::PresentMode,
 };
 use bevy_daz::{DazAsset, DazAssetSourcePlugin, DazBone, DazFigure, DazPlugins};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
@@ -20,7 +23,13 @@ fn main() {
 		DazAssetSourcePlugin::with_root_paths(vec![
 			"C:/Users/Public/Documents/My DAZ 3D Library".into()
 		]),
-		DefaultPlugins,
+		DefaultPlugins.set(WindowPlugin {
+			primary_window: Some(Window {
+				present_mode: PresentMode::AutoNoVsync,
+				..default()
+			}),
+			..default()
+		}),
 		// This provides the asset loader, spawning behavior, and some runtime
 		// functionality like keeping child skeletons in sync with their parents
 		DazPlugins,
@@ -158,6 +167,11 @@ impl Plugin for DebugVisualiztionsPlugin {
 		app.register_type::<OverlayVisualizations>()
 			.insert_resource(OverlayVisualizations::default());
 
+		app.register_type::<FpsRealtime>()
+			.register_type::<FpsMin>()
+			.register_type::<FpsAvg>()
+			.register_type::<FpsMax>();
+
 		app.add_systems(Startup, (configure_gizmos, spawn_ui));
 		app.add_systems(
 			Update,
@@ -165,6 +179,7 @@ impl Plugin for DebugVisualiztionsPlugin {
 				configure_visualizations,
 				gather_mesh_data.pipe(visualize_mesh_data),
 				visualize_bones,
+				update_ui,
 			),
 		);
 	}
@@ -215,6 +230,22 @@ fn configure_gizmos(mut r_configs: ResMut<GizmoConfigStore>) {
 	let (wireframe_config, _) = r_configs.config_mut::<WireframeGizmoGroup>();
 	wireframe_config.depth_bias = -0.001;
 }
+
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+struct FpsRealtime;
+
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+struct FpsMin;
+
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+struct FpsAvg;
+
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+struct FpsMax;
 
 fn spawn_ui(mut cmd: Commands) {
 	fn text_hint(builder: &mut ChildBuilder<'_>, text: impl Into<String>) {
@@ -268,6 +299,115 @@ fn spawn_ui(mut cmd: Commands) {
 				text_hint(builder, "O: Toggle bone orientations");
 			});
 	});
+
+	let perf_text_style = TextStyle {
+		color: Color::GREEN,
+		font_size: 14.,
+		..default()
+	};
+
+	cmd.spawn((Name::new("Performance Overlay"), NodeBundle {
+		style: Style {
+			flex_direction: FlexDirection::Column,
+			align_items: AlignItems::FlexEnd,
+			row_gap: Val::Px(4.),
+			position_type: PositionType::Absolute,
+			right: Val::Px(16.),
+			bottom: Val::Px(16.),
+			padding: UiRect::axes(Val::Px(12.), Val::Px(8.)),
+			..default()
+		},
+		background_color: Color::BLACK.with_a(0.5).into(),
+		..default()
+	}))
+	.with_children(|builder| {
+		builder.spawn((
+			Name::new("FPS Realtime"),
+			FpsRealtime,
+			TextBundle::from_section("Realtime: 0.00 fps", perf_text_style.clone())
+				.with_text_justify(JustifyText::Right),
+		));
+
+		builder
+			.spawn(NodeBundle {
+				style: Style {
+					flex_direction: FlexDirection::Row,
+					column_gap: Val::Px(12.),
+					..default()
+				},
+				..default()
+			})
+			.with_children(|builder| {
+				builder.spawn((
+					Name::new("FPS Min"),
+					FpsMin,
+					TextBundle::from_section("Min: 0.00", perf_text_style.clone()),
+				));
+				builder.spawn((
+					Name::new("FPS Avg"),
+					FpsAvg,
+					TextBundle::from_section("Avg: 0.00", perf_text_style.clone()),
+				));
+				builder.spawn((
+					Name::new("FPS Max"),
+					FpsMax,
+					TextBundle::from_section("Max: 0.00", perf_text_style),
+				));
+			});
+	});
+}
+
+fn update_ui(
+	r_time: Res<Time>,
+	q_fps_realtime: Query<Entity, With<FpsRealtime>>,
+	q_fps_min: Query<Entity, With<FpsMin>>,
+	q_fps_avg: Query<Entity, With<FpsAvg>>,
+	q_fps_max: Query<Entity, With<FpsMax>>,
+	mut q_text: Query<&mut Text>,
+	mut l_last_1000_frames: Local<VecDeque<f32>>,
+) {
+	let Ok(realtime_ent) = q_fps_realtime.get_single() else {
+		return;
+	};
+	let Ok(min_ent) = q_fps_min.get_single() else {
+		return;
+	};
+	let Ok(avg_ent) = q_fps_avg.get_single() else {
+		return;
+	};
+	let Ok(max_ent) = q_fps_max.get_single() else {
+		return;
+	};
+
+	let fps_current = 1. / r_time.delta_seconds();
+	if !fps_current.is_finite() {
+		return;
+	}
+
+	q_text.get_mut(realtime_ent).unwrap().sections[0].value =
+		format!("Realtime: {fps_current:.2} fps");
+
+	l_last_1000_frames.push_back(fps_current);
+	if l_last_1000_frames.len() > 1000 {
+		l_last_1000_frames.pop_front();
+	}
+
+	let sum: f32 = l_last_1000_frames.iter().sum();
+	let avg = sum / (l_last_1000_frames.len() as f32);
+	let min = l_last_1000_frames
+		.iter()
+		.copied()
+		.reduce(f32::min)
+		.unwrap_or(0.);
+	let max = l_last_1000_frames
+		.iter()
+		.copied()
+		.reduce(f32::max)
+		.unwrap_or(f32::MAX);
+
+	q_text.get_mut(min_ent).unwrap().sections[0].value = format!("Min: {min:.2}");
+	q_text.get_mut(avg_ent).unwrap().sections[0].value = format!("Avg: {avg:.2}");
+	q_text.get_mut(max_ent).unwrap().sections[0].value = format!("Max: {max:.2}");
 }
 
 fn configure_visualizations(
