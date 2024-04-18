@@ -611,20 +611,34 @@ fn deform_vertex(
 			let weight = vert_joint_weights[buffer_idx];
 			let joint_ent = joints[(*joint_idx) as usize];
 			(joint_ent, weight)
+		})
+		.collect::<Vec<_>>();
+
+	let first_rotation = weights
+		.first()
+		.map(|(joint, _)| dual_quats[joint])
+		.unwrap_or_default()
+		.rotation();
+
+	let xform_sum = weights
+		.into_iter()
+		.fold(None, |accum: Option<DualQuat>, (joint, weight)| {
+			if weight.abs() <= 1.0e-3 {
+				return accum;
+			}
+
+			let xform = dual_quats[&joint];
+
+			if let Some(acc_xform) = accum {
+				if xform.rotation().dot(first_rotation) < 0. {
+					Some(acc_xform + xform * -weight)
+				} else {
+					Some(acc_xform + xform * weight)
+				}
+			} else {
+				Some(xform * weight)
+			}
 		});
-
-	let xform_sum = weights.fold(None, |accum: Option<DualQuat>, (joint, weight)| {
-		if weight.abs() <= 1.0e-3 {
-			return accum;
-		}
-
-		let xform = dual_quats[&joint];
-		if let Some(acc_xform) = accum {
-			Some(acc_xform + xform * weight)
-		} else {
-			Some(xform * weight)
-		}
-	});
 
 	let xform_sum = xform_sum.unwrap_or_default();
 

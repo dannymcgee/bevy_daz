@@ -21,20 +21,25 @@ fn skin_model(
 		);
 	}
 
-	let m0 = joint_xforms.data[indices.x];
-	let m1 = joint_xforms.data[indices.y];
-	let m2 = joint_xforms.data[indices.z];
-	let m3 = joint_xforms.data[indices.w];
-
-	let dq0 = dq_math::dq_from_mat4x4(m0);
-	let dq1 = dq_math::dq_from_mat4x4(m1);
-	let dq2 = dq_math::dq_from_mat4x4(m2);
-	let dq3 = dq_math::dq_from_mat4x4(m3);
+	let dq0 = dq_math::dq_from_mat4x4(joint_xforms.data[indices.x]);
+	let q0 = normalize(dq0[0]);
 
 	var result: mat2x4<f32> = dq_math::dq_scale(dq0, weights.x);
-	result = dq_math::dq_add(result, dq_math::dq_scale(dq1, weights.y));
-	result = dq_math::dq_add(result, dq_math::dq_scale(dq2, weights.z));
-	result = dq_math::dq_add(result, dq_math::dq_scale(dq3, weights.w));
+
+	for (var i: u32 = 1u; i < 4; i = i + 1) {
+		let k = indices[i];
+		var w: f32 = weights[i];
+
+		let m = joint_xforms.data[k];
+		let dq = dq_math::dq_from_mat4x4(m);
+
+		let rotation = normalize(dq[0]);
+		if (dot(rotation, q0) < 0.0) {
+			w = w * -1.0;
+		}
+
+		result = dq_math::dq_add(result, dq_math::dq_scale(dq, w));
+	}
 
 	return dq_math::mat4x4_from_dq(dq_math::dq_normalize(result));
 }
