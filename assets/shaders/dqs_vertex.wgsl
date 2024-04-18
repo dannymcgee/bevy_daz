@@ -87,10 +87,10 @@ fn skin_model(
 		);
 	}
 
-	var result: mat2x4<f32> = dq_scale(joint_xforms[indices.x], weights.x);
-	result = dq_add(result, dq_scale(joint_xforms[indices.y], weights.y));
-	result = dq_add(result, dq_scale(joint_xforms[indices.z], weights.z));
-	result = dq_add(result, dq_scale(joint_xforms[indices.w], weights.w));
+	var result: mat2x4<f32> = dq_scale(joint_xforms.data[indices.x], weights.x);
+	result = dq_add(result, dq_scale(joint_xforms.data[indices.y], weights.y));
+	result = dq_add(result, dq_scale(joint_xforms.data[indices.z], weights.z));
+	result = dq_add(result, dq_scale(joint_xforms.data[indices.w], weights.w));
 
 	return mat4x4_from_dq(result);
 }
