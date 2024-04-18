@@ -63,6 +63,15 @@ fn skin_model(
 	indices: vec4<u32>,
 	weights: vec4<f32>,
 ) -> mat4x4<f32> {
+	if ((weights.x + weights.y + weights.z + weights.w) <= 0.001) {
+		return mat4x4<f32>(
+			1.0, 0.0, 0.0, 0.0,
+			0.0, 1.0, 0.0, 0.0,
+			0.0, 0.0, 1.0, 0.0,
+			0.0, 0.0, 0.0, 1.0
+		);
+	}
+
 	var result: mat2x4<f32> = dq_scale(joint_xforms[indices.x], weights.x);
 	result = dq_add(result, dq_scale(joint_xforms[indices.y], weights.y));
 	result = dq_add(result, dq_scale(joint_xforms[indices.z], weights.z));
