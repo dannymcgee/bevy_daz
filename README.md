@@ -2,10 +2,13 @@
 
 ## Summary
 
-This project comes in two parts:
+This project comes in a few parts:
 
 * `daz_asset_types`, a standalone crate providing faifhful Rust representations
   of the [Daz 3D asset file formats](http://docs.daz3d.com/doku.php/public/dson_spec/start)
+* `bevy_dqskinning`, a standalone Bevy Engine plugin that implements
+  [dual-quaternion skinning](https://users.cs.utah.edu/~ladislav/kavan07skinning/kavan07skinning.pdf)
+  via a `StandardMaterial` extension
 * `daz_bevy`, a crate providing plugins to load and spawn Daz 3D assets into a
   Bevy Engine application
 
@@ -32,7 +35,7 @@ correctly in Bevy Engine.
 ## Tentative Road Map for `bevy_daz`
 - [x] Get the base Genesis 9 figure loading in Bevy Engine with UVs, joints, and
   skin weights
-- [ ] Implement dual-quaternion skinning for more faithful mesh deformations
+- [x] Implement dual quaternion skinning for more faithful mesh deformations
 - [ ] Translate IRAY material definitions to Bevy-compatible equivalents
 - [ ] Implement corrective blend shapes and flexions for 1:1 mesh deformations
 - [ ] Support "shaping" morphs for custom characters designed in Daz Studio

@@ -312,13 +312,13 @@ fn process_skins(
 			}
 		}
 
-		for (vert_idx, excess_weights) in excess_weights_by_vert {
-			warn!(
-				"Attempted to assign {} joint weights to vertex {vert_idx}, \
-				but a maximum of 4 are supported.",
-				excess_weights + 4,
-			)
-		}
+		// for (vert_idx, excess_weights) in excess_weights_by_vert {
+		// 	warn!(
+		// 		"Attempted to assign {} joint weights to vertex {vert_idx}, \
+		// 		but a maximum of 4 are supported.",
+		// 		excess_weights + 4,
+		// 	)
+		// }
 
 		let vert_joints = vert_joints
 			.into_iter()

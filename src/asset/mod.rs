@@ -1,4 +1,5 @@
 use bevy::{prelude::*, utils::HashMap};
+use bevy_dqskinning::DqsStandardMaterial;
 use daz_asset_types::NodeType;
 
 use self::loader::DazAssetLoader;
@@ -51,7 +52,7 @@ pub struct DazMesh {
 #[derive(Asset, Clone, Debug, TypePath)]
 pub struct DazPrimitive {
 	pub mesh: Handle<Mesh>,
-	pub material: Option<Handle<StandardMaterial>>,
+	pub material: Option<Handle<DqsStandardMaterial>>,
 }
 
 #[derive(Asset, Clone, Debug, TypePath)]
