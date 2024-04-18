@@ -1,8 +1,43 @@
 #import bevy_pbr::{
-	forward_io::{Vertex, VertexOutput},
 	morph,
 	mesh_functions,
 	view_transformations
+}
+
+struct Vertex {
+	@builtin(instance_index) instance_index: u32,
+	@location(0) position: vec3<f32>,
+	@location(1) normal: vec3<f32>,
+	@location(2) uv: vec2<f32>,
+#ifdef VERTEX_UVS_B
+	@location(3) uv_b: vec2<f32>,
+#endif
+#ifdef VERTEX_TANGENTS
+	@location(4) tangent: vec4<f32>,
+#endif
+	@location(6) joint_indices: vec4<u32>,
+	@location(7) joint_weights: vec4<f32>,
+#ifdef MORPH_TARGETS
+	@builtin(vertex_index) index: u32,
+#endif
+}
+
+struct VertexOutput {
+	// This is `clip position` when the struct is used as a vertex stage output
+	// and `frag coord` when used as a fragment stage input
+	@builtin(position) position: vec4<f32>,
+	@location(0) world_position: vec4<f32>,
+	@location(1) world_normal: vec3<f32>,
+	@location(2) uv: vec2<f32>,
+#ifdef VERTEX_UVS_B
+	@location(3) uv_b: vec2<f32>,
+#endif
+#ifdef VERTEX_TANGENTS
+	@location(4) world_tangent: vec4<f32>,
+#endif
+#ifdef VERTEX_OUTPUT_INSTANCE_INDEX
+	@location(6) @interpolate(flat) instance_index: u32,
+#endif
 }
 
 struct DqSkinnedMesh {
@@ -134,9 +169,7 @@ fn morph_vertex(in: Vertex) -> Vertex {
 		}
 
 		vertex.position += weight * morph::morph(vertex.index, morph::position_offset, i);
-#ifdef VERTEX_NORMALS
 		vertex.normal += weight * morph::morph(vertex.index, morph::normal_offset, i);
-#endif
 #ifdef VERTEX_TANGENTS
 		vertex.tangent += vec4(weight * morph::morph(vertex.index, morph::tangent_offset, i), 0.0);
 #endif
@@ -157,22 +190,15 @@ fn vertex(in: Vertex) -> VertexOutput {
 #endif
 
 	var model = skin_model(vertex.joint_indices, vertex.joint_weights);
-
-#ifdef VERTEX_NORMALS
 	out.world_normal = skin_normals(model, vertex.normal);
-#endif
 
-#ifdef VERTEX_POSITIONS
 	out.world_position = mesh_functions::mesh_position_local_to_world(
 		model,
 		vec4<f32>(vertex.position, 1.0)
 	);
 	out.position = view_transformations::position_world_to_clip(out.world_position.xyz);
-#endif
 
-#ifdef VERTEX_UVS
 	out.uv = vertex.uv;
-#endif
 
 #ifdef VERTEX_UVS_B
 	out.uv_b = vertex.uv_b;

@@ -1,10 +1,16 @@
 use bevy::{
 	asset::Asset,
-	pbr::{ExtendedMaterial, MaterialExtension, StandardMaterial},
+	pbr::{
+		ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline,
+		StandardMaterial,
+	},
 	reflect::Reflect,
 	render::{
-		mesh::MeshVertexAttribute,
-		render_resource::{AsBindGroup, ShaderRef, VertexFormat},
+		mesh::{Mesh, MeshVertexAttribute, MeshVertexBufferLayout},
+		render_resource::{
+			AsBindGroup, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError,
+			VertexFormat,
+		},
 	},
 };
 
@@ -28,5 +34,23 @@ impl MaterialExtension for DqsMaterialExt {
 
 	fn fragment_shader() -> ShaderRef {
 		ShaderRef::Default
+	}
+
+	fn specialize(
+		_pipeline: &MaterialExtensionPipeline,
+		descriptor: &mut RenderPipelineDescriptor,
+		layout: &MeshVertexBufferLayout,
+		_key: MaterialExtensionKey<Self>,
+	) -> Result<(), SpecializedMeshPipelineError> {
+		let vertex_layout = layout.get_layout(&[
+			Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
+			Mesh::ATTRIBUTE_NORMAL.at_shader_location(1),
+			Mesh::ATTRIBUTE_UV_0.at_shader_location(2),
+			Self::ATTRIBUTE_JOINT_INDEX.at_shader_location(6),
+			Self::ATTRIBUTE_JOINT_WEIGHT.at_shader_location(7),
+		])?;
+		descriptor.vertex.buffers = vec![vertex_layout];
+
+		Ok(())
 	}
 }
