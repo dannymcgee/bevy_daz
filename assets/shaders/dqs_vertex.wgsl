@@ -40,6 +40,7 @@ struct VertexOutput {
 #endif
 }
 
+#ifdef DQ_SKINNED
 struct DqSkinnedMesh {
 	data: array<mat2x4<f32>, 256u>,
 }
@@ -156,6 +157,7 @@ fn skin_normals(
 		) * normal
 	);
 }
+#endif // DQ_SKINNED
 
 #ifdef MORPH_TARGETS
 fn morph_vertex(in: Vertex) -> Vertex {
@@ -189,8 +191,18 @@ fn vertex(in: Vertex) -> VertexOutput {
 	var vertex = in;
 #endif
 
+#ifdef DQ_SKINNED
 	var model = skin_model(vertex.joint_indices, vertex.joint_weights);
 	out.world_normal = skin_normals(model, vertex.normal);
+#else
+	// TODO: See https://github.com/gfx-rs/naga/issues/2416
+	var model = mesh_functions::get_model_matrix(in.instance_index);
+	out.world_normal = mesh_functions::mesh_normal_local_to_world(
+		vertex.normal,
+		// TODO: See https://github.com/gfx-rs/naga/issues/2416
+		in.instance_index
+	);
+#endif
 
 	out.world_position = mesh_functions::mesh_position_local_to_world(
 		model,
