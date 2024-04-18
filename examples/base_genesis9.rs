@@ -180,7 +180,6 @@ impl Plugin for DebugVisualiztionsPlugin {
 				configure_visualizations,
 				visualize_wires_and_normals,
 				visualize_bones,
-				animate_left_arm,
 				update_ui,
 			),
 		);
@@ -427,38 +426,6 @@ fn configure_visualizations(
 	}
 	if ri_keyboard.just_pressed(KeyCode::KeyO) {
 		r_config.bone_orientations = !r_config.bone_orientations;
-	}
-}
-
-fn animate_left_arm(
-	r_time: Res<Time>,
-	q_figure: Query<&Children, With<DazFigure>>,
-	q_children: Query<&Children>,
-	q_names: Query<&Name>,
-	mut q_xform: Query<&mut Transform>,
-	mut l_left_arm: Local<Option<Entity>>,
-) {
-	if l_left_arm.is_none() {
-		let g9 = q_figure.single().iter().copied().find(|&ent| {
-			let name = q_names.get(ent);
-			name.is_ok() && name.unwrap().as_str() == "Genesis9"
-		});
-
-		let Some(g9) = g9 else {
-			return;
-		};
-
-		*l_left_arm = q_children.iter_descendants(g9).find(|&ent| {
-			let name = q_names.get(ent);
-			name.is_ok() && name.unwrap().as_str() == "l_upperarm"
-		});
-	}
-
-	if let Some(left_arm) = l_left_arm.as_ref().copied() {
-		use std::f32::consts;
-		let mut xform = q_xform.get_mut(left_arm).unwrap();
-		xform.rotation =
-			Quat::from_rotation_z(consts::FRAC_PI_3 * (r_time.elapsed_seconds() * 2.).sin());
 	}
 }
 
