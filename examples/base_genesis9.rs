@@ -195,14 +195,14 @@ impl Default for OverlayVisualizations {
 	fn default() -> Self {
 		Self {
 			wireframe: false,
-			wireframe_color: Color::BLACK.with_a(0.2),
+			wireframe_color: Color::WHITE.with_a(0.2),
 
 			normals: false,
 			normals_color: Color::CYAN.with_a(0.4),
 			normals_length: 0.01,
 
 			bones: false,
-			bone_color: Color::BLACK.with_a(0.6),
+			bone_color: Color::WHITE.with_a(0.3),
 			bone_orientations: false,
 		}
 	}
