@@ -8,15 +8,12 @@ use bevy::{
 	prelude::*,
 	render::{
 		camera::Exposure,
-		mesh::{Indices, VertexAttributeValues},
+		mesh::{skinning::SkinnedMesh, Indices, VertexAttributeValues},
 	},
 	utils::smallvec::{smallvec, SmallVec},
 	window::PresentMode,
 };
-use bevy_daz::{
-	DazAsset, DazAssetSourcePlugin, DazBone, DazFigure, DazPlugins, DqSkinnedMesh, DqsMaterialExt,
-	DualQuat,
-};
+use bevy_daz::{DazAsset, DazAssetSourcePlugin, DazBone, DazFigure, DazPlugins, DualQuat};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
@@ -480,7 +477,7 @@ fn gather_mesh_data(
 	r_config: Res<OverlayVisualizations>,
 	ra_meshes: Res<Assets<Mesh>>,
 	q_meshes: Query<(Entity, &Handle<Mesh>)>,
-	q_skinned_mesh: Query<&DqSkinnedMesh>,
+	q_skinned_mesh: Query<&SkinnedMesh>,
 	q_joints: Query<(&Name, &GlobalTransform, &DazBone)>,
 ) /*-> Option<Vec<MeshData>>*/
 {
@@ -496,8 +493,8 @@ fn gather_mesh_data(
 			let positions = mesh.attribute(Mesh::ATTRIBUTE_POSITION)?;
 			let normals = mesh.attribute(Mesh::ATTRIBUTE_NORMAL)?;
 			let indices = mesh.indices()?;
-			let joint_indices = mesh.attribute(DqsMaterialExt::ATTRIBUTE_JOINT_INDEX)?;
-			let joint_weights = mesh.attribute(DqsMaterialExt::ATTRIBUTE_JOINT_WEIGHT)?;
+			let joint_indices = mesh.attribute(Mesh::ATTRIBUTE_JOINT_INDEX)?;
+			let joint_weights = mesh.attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT)?;
 
 			use VertexAttributeValues::*;
 			let Float32x3(positions) = positions else {

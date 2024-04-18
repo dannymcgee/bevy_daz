@@ -1,10 +1,13 @@
 use std::collections::VecDeque;
 
-use bevy::{ecs::entity::EntityHashSet, pbr::ExtendedMaterial, prelude::*, utils::HashMap};
-use bevy_dqskinning::{
-	DqSkinnedMesh, DqSkinningPlugin, DqsInverseBindposes, DqsMaterialExt, DqsStandardMaterial,
-	DualQuat,
+use bevy::{
+	ecs::entity::EntityHashSet,
+	pbr::ExtendedMaterial,
+	prelude::*,
+	render::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes},
+	utils::HashMap,
 };
+use bevy_dqskinning::{DqSkinningPlugin, DqsMaterialExt, DqsStandardMaterial, DualQuat};
 
 use crate::{DazAsset, DazMesh, DazNode, NodeType};
 
@@ -56,7 +59,7 @@ fn spawn_daz_assets(
 	ra_daz_assets: Res<Assets<DazAsset>>,
 	ra_daz_nodes: Res<Assets<DazNode>>,
 	ra_daz_meshes: Res<Assets<DazMesh>>,
-	mut ra_inverse_bindposes: ResMut<Assets<DqsInverseBindposes>>,
+	mut ra_inverse_bindposes: ResMut<Assets<SkinnedMeshInverseBindposes>>,
 	mut ra_dqstandard_mats: ResMut<Assets<DqsStandardMaterial>>,
 	q_daz_assets: Query<&Handle<DazAsset>>,
 	mut l_assets_to_spawn: Local<Vec<Entity>>,
@@ -160,13 +163,13 @@ fn spawn_daz_assets(
 						.iter()
 						.map(|id| {
 							// TODO: Avoid doing this computation twice for each joint
-							DualQuat::from(spawned_nodes[id].root_transform.affine().inverse())
+							Mat4::from(spawned_nodes[id].root_transform.affine().inverse())
 						})
 						.collect::<Vec<_>>();
 
 					let handle = ra_inverse_bindposes.add(inverse_bindposes);
 
-					Some(DqSkinnedMesh {
+					Some(SkinnedMesh {
 						inverse_bindposes: handle,
 						joints,
 					})

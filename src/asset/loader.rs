@@ -10,7 +10,6 @@ use bevy::{
 		BoxedFuture,
 	},
 };
-use bevy_dqskinning::DqsMaterialExt;
 use daz_asset_types::{ChannelsAsVec3, Daz, Geometry, Modifier, Node, NodeType};
 use regex::{Captures, Regex};
 use serde_json as json;
@@ -313,13 +312,13 @@ fn process_skins(
 			}
 		}
 
-		for (vert_idx, excess_weights) in excess_weights_by_vert {
-			warn!(
-				"Attempted to assign {} joint weights to vertex {vert_idx}, \
-				but a maximum of 4 are supported.",
-				excess_weights + 4,
-			)
-		}
+		// for (vert_idx, excess_weights) in excess_weights_by_vert {
+		// 	warn!(
+		// 		"Attempted to assign {} joint weights to vertex {vert_idx}, \
+		// 		but a maximum of 4 are supported.",
+		// 		excess_weights + 4,
+		// 	)
+		// }
 
 		let vert_joints = vert_joints
 			.into_iter()
@@ -355,13 +354,13 @@ fn process_skins(
 		mesh_data.joints = joint_ids.iter().copied().map(|id| id.to_owned()).collect();
 
 		mesh_data.mesh.insert_attribute(
-			DqsMaterialExt::ATTRIBUTE_JOINT_INDEX,
+			Mesh::ATTRIBUTE_JOINT_INDEX,
 			VertexAttributeValues::Uint16x4(vert_joints),
 		);
 
 		mesh_data
 			.mesh
-			.insert_attribute(DqsMaterialExt::ATTRIBUTE_JOINT_WEIGHT, vert_weights);
+			.insert_attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT, vert_weights);
 	}
 }
 
