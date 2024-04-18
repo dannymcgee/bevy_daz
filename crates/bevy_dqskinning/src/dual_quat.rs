@@ -15,11 +15,6 @@ use bevy::{
 pub struct DualQuat(pub Quat, pub Quat);
 
 impl DualQuat {
-	pub(crate) const ZERO: Self = Self(
-		Quat::from_xyzw(0., 0., 0., 0.),
-		Quat::from_xyzw(0., 0., 0., 0.),
-	);
-
 	pub const IDENTITY: Self = Self(
 		Quat::from_xyzw(0., 0., 0., 1.),
 		Quat::from_xyzw(0., 0., 0., 0.),

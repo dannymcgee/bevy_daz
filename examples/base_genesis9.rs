@@ -178,8 +178,7 @@ impl Plugin for DebugVisualiztionsPlugin {
 			Update,
 			(
 				configure_visualizations,
-				// gather_mesh_data.pipe(visualize_mesh_data),
-				gather_mesh_data,
+				visualize_wires_and_normals,
 				visualize_bones,
 				animate_left_arm,
 				update_ui,
@@ -463,73 +462,40 @@ fn animate_left_arm(
 	}
 }
 
-struct MeshData {
-	entity: Entity,
-	positions: Vec<Vec3>,
-	normals: Vec<Vec3>,
-	indices: Vec<usize>,
-	joint_indices: Vec<[usize; 4]>,
-	joint_weights: Vec<[f32; 4]>,
-}
-
-fn gather_mesh_data(
+fn visualize_wires_and_normals(
 	mut gizmos: Gizmos<WireframeGizmoGroup>,
 	r_config: Res<OverlayVisualizations>,
 	ra_meshes: Res<Assets<Mesh>>,
 	q_meshes: Query<(Entity, &Handle<Mesh>)>,
 	q_skinned_mesh: Query<&SkinnedMesh>,
 	q_joints: Query<(&Name, &GlobalTransform, &DazBone)>,
-) /*-> Option<Vec<MeshData>>*/
-{
+) {
 	if !r_config.wireframe && !r_config.normals {
 		return;
 	}
 
-	let mesh_data = q_meshes
-		.iter()
-		.filter_map(|(entity, mesh_handle)| {
-			let mesh = ra_meshes.get(mesh_handle)?;
+	for (entity, mesh_handle) in q_meshes.iter() {
+		let Some(mesh) = ra_meshes.get(mesh_handle) else {
+			continue;
+		};
+		use VertexAttributeValues::*;
+		let Some(Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
+			continue;
+		};
+		let Some(Float32x3(normals)) = mesh.attribute(Mesh::ATTRIBUTE_NORMAL) else {
+			continue;
+		};
+		let Some(Indices::U32(indices)) = mesh.indices() else {
+			continue;
+		};
+		let Some(Uint16x4(joint_indices)) = mesh.attribute(Mesh::ATTRIBUTE_JOINT_INDEX) else {
+			continue;
+		};
+		let Some(Float32x4(joint_weights)) = mesh.attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT) else {
+			continue;
+		};
 
-			let positions = mesh.attribute(Mesh::ATTRIBUTE_POSITION)?;
-			let normals = mesh.attribute(Mesh::ATTRIBUTE_NORMAL)?;
-			let indices = mesh.indices()?;
-			let joint_indices = mesh.attribute(Mesh::ATTRIBUTE_JOINT_INDEX)?;
-			let joint_weights = mesh.attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT)?;
-
-			use VertexAttributeValues::*;
-			let Float32x3(positions) = positions else {
-				return None;
-			};
-			let Float32x3(normals) = normals else {
-				return None;
-			};
-			let Indices::U32(indices) = indices else {
-				return None;
-			};
-			let Uint16x4(joint_indices) = joint_indices else {
-				return None;
-			};
-			let Float32x4(joint_weights) = joint_weights else {
-				return None;
-			};
-
-			Some(MeshData {
-				entity,
-				positions: positions.iter().copied().map(Vec3::from).collect(),
-				normals: normals.iter().copied().map(Vec3::from).collect(),
-				indices: indices.iter().copied().map(|idx| idx as usize).collect(),
-				joint_indices: joint_indices
-					.iter()
-					.copied()
-					.map(|[a, b, c, d]| [a as usize, b as usize, c as usize, d as usize])
-					.collect(),
-				joint_weights: joint_weights.clone(),
-			})
-		})
-		.collect::<Vec<_>>();
-
-	for data in mesh_data {
-		let skinned_mesh = q_skinned_mesh.get(data.entity).unwrap();
+		let skinned_mesh = q_skinned_mesh.get(entity).unwrap();
 		let joints = &skinned_mesh.joints;
 		let dual_quats = joints
 			.iter()
@@ -542,49 +508,53 @@ fn gather_mesh_data(
 			})
 			.collect::<EntityHashMap<_>>();
 
-		for face in data.indices.chunks_exact(6) {
+		for face in indices.chunks_exact(6) {
 			let &[i0, i1, i2, _, _, i3] = face else {
 				continue;
 			};
-			let v0 = data.positions[i0];
-			let v1 = data.positions[i1];
-			let v2 = data.positions[i2];
-			let v3 = data.positions[i3];
+			let v0 = positions[i0 as usize];
+			let v1 = positions[i1 as usize];
+			let v2 = positions[i2 as usize];
+			let v3 = positions[i3 as usize];
 
-			let n0 = data.normals[i0];
-			let n1 = data.normals[i1];
-			let n2 = data.normals[i2];
-			let n3 = data.normals[i3];
+			let n0 = normals[i0 as usize];
+			let n1 = normals[i1 as usize];
+			let n2 = normals[i2 as usize];
+			let n3 = normals[i3 as usize];
 
 			let (v0, n0) = deform_vertex(
-				&data,
+				joint_indices,
+				joint_weights,
 				&skinned_mesh.joints,
 				&dual_quats,
-				i0,
+				i0 as usize,
 				v0.into(),
 				n0.into(),
 			);
 			let (v1, n1) = deform_vertex(
-				&data,
+				joint_indices,
+				joint_weights,
 				&skinned_mesh.joints,
 				&dual_quats,
-				i1,
+				i1 as usize,
 				v1.into(),
 				n1.into(),
 			);
 			let (v2, n2) = deform_vertex(
-				&data,
+				joint_indices,
+				joint_weights,
 				&skinned_mesh.joints,
 				&dual_quats,
-				i2,
+				i2 as usize,
 				v2.into(),
 				n2.into(),
 			);
 			let (v3, n3) = deform_vertex(
-				&data,
+				joint_indices,
+				joint_weights,
 				&skinned_mesh.joints,
 				&dual_quats,
-				i3,
+				i3 as usize,
 				v3.into(),
 				n3.into(),
 			);
@@ -620,69 +590,26 @@ fn gather_mesh_data(
 			}
 		}
 	}
-
-	// Some(mesh_data)
-}
-
-fn visualize_mesh_data(
-	In(data): In<Option<Vec<MeshData>>>,
-	mut gizmos: Gizmos<WireframeGizmoGroup>,
-	r_config: Res<OverlayVisualizations>,
-) {
-	let Some(data) = data else {
-		return;
-	};
-	if r_config.wireframe {
-		visualize_wireframe(&data, &mut gizmos, &r_config);
-	}
-	if r_config.normals {
-		visualize_normals(&data, &mut gizmos, &r_config);
-	}
-}
-
-fn visualize_wireframe(
-	data: &[MeshData],
-	gizmos: &mut Gizmos<WireframeGizmoGroup>,
-	config: &OverlayVisualizations,
-) {
-	for MeshData {
-		positions, indices, ..
-	} in data
-	{
-		for face in indices.chunks_exact(6) {
-			let &[i0, i1, i2, _, _, i3] = face else {
-				continue;
-			};
-			let v0 = positions[i0];
-			let v1 = positions[i1];
-			let v2 = positions[i2];
-			let v3 = positions[i3];
-
-			gizmos.line(v0, v1, config.wireframe_color);
-			gizmos.line(v1, v2, config.wireframe_color);
-			gizmos.line(v2, v3, config.wireframe_color);
-			gizmos.line(v3, v0, config.wireframe_color);
-		}
-	}
 }
 
 fn deform_vertex(
-	data: &MeshData,
+	joint_indices: &[[u16; 4]],
+	joint_weights: &[[f32; 4]],
 	joints: &[Entity],
 	dual_quats: &EntityHashMap<DualQuat>,
 	vert_idx: usize,
 	pos: Vec3A,
 	norm: Vec3A,
 ) -> (Vec3A, Vec3A) {
-	let vert_joint_indices = data.joint_indices[vert_idx];
-	let vert_joint_weights = data.joint_weights[vert_idx];
+	let vert_joint_indices = joint_indices[vert_idx];
+	let vert_joint_weights = joint_weights[vert_idx];
 
 	let weights = vert_joint_indices
 		.iter()
 		.enumerate()
 		.map(|(buffer_idx, joint_idx)| {
 			let weight = vert_joint_weights[buffer_idx];
-			let joint_ent = joints[*joint_idx];
+			let joint_ent = joints[(*joint_idx) as usize];
 			(joint_ent, weight)
 		});
 
@@ -711,40 +638,6 @@ fn deform_vertex(
 		joint_xform.transform_point3a(pos),
 		joint_xform.transform_vector3a(norm),
 	)
-}
-
-fn visualize_normals(
-	data: &[MeshData],
-	gizmos: &mut Gizmos<WireframeGizmoGroup>,
-	config: &OverlayVisualizations,
-) {
-	for MeshData {
-		positions,
-		normals,
-		indices,
-		..
-	} in data
-	{
-		for face in indices.chunks_exact(6) {
-			let &[i0, i1, i2, _, _, i3] = face else {
-				continue;
-			};
-			let v0 = positions[i0];
-			let v1 = positions[i1];
-			let v2 = positions[i2];
-			let v3 = positions[i3];
-
-			let n0 = normals[i0];
-			let n1 = normals[i1];
-			let n2 = normals[i2];
-			let n3 = normals[i3];
-
-			gizmos.line(v0, v0 + n0 * config.normals_length, config.normals_color);
-			gizmos.line(v1, v1 + n1 * config.normals_length, config.normals_color);
-			gizmos.line(v2, v2 + n2 * config.normals_length, config.normals_color);
-			gizmos.line(v3, v3 + n3 * config.normals_length, config.normals_color);
-		}
-	}
 }
 
 fn visualize_bones(
