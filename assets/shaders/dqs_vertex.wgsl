@@ -51,22 +51,22 @@ var<uniform> joint_xforms: DqSkinnedMesh;
 /// Dual-quaternion scale
 fn dq_scale(dq: mat2x4<f32>, scale: f32) -> mat2x4<f32> {
 	return mat2x4<f32>(
-		dq.x * scale,
-		dq.y * scale
+		dq[0] * scale,
+		dq[1] * scale
 	);
 }
 
 /// Dual-quaternion addition
 fn dq_add(lhs: mat2x4<f32>, rhs: mat2x4<f32>) -> mat2x4<f32> {
 	return mat2x4<f32>(
-		lhs.x + rhs.x,
-		lhs.y + rhs.y
+		lhs[0] + rhs[0],
+		lhs[1] + rhs[1]
 	);
 }
 
 /// Dual-quaternion normalization
 fn dq_normalize(dq: mat2x4<f32>) -> mat2x4<f32> {
-	let mag = length(dq.x);
+	let mag = length(dq[0]);
 	if (mag <= 0.001) {
 		return mat2x4<f32>(
 			vec4<f32>(0.0, 0.0, 0.0, 1.0),
@@ -74,7 +74,7 @@ fn dq_normalize(dq: mat2x4<f32>) -> mat2x4<f32> {
 		);
 	}
 
-	return mat2x4<f32>(dq.x / mag, dq.y / mag);
+	return mat2x4<f32>(dq[0] / mag, dq[1] / mag);
 }
 
 /// Quaternion multiplication
@@ -88,7 +88,7 @@ fn q_mul(lhs: vec4<f32>, rhs: vec4<f32>) -> vec4<f32> {
 /// Dual-quaternion to 4x4 transform matrix
 fn mat4x4_from_dq(dq: mat2x4<f32>) -> mat4x4<f32> {
 	// Convert the "real" quaternion to a 3x3 rotation matrix
-	let rotation = dq.x;
+	let rotation = dq[0];
 
 	// Mostly copy-pasted from glam::Mat3A::from_quat
 	let x2 = rotation.x + rotation.x;
@@ -109,8 +109,8 @@ fn mat4x4_from_dq(dq: mat2x4<f32>) -> mat4x4<f32> {
 	let m31_m32_m33 = vec3<f32>(xz+wy, yz-wx, 1.0-(xx+yy));
 
 	// Extract translation vector from the dual-quat
-	let lhs = dq.y * 2.0;
-	let rhs = vec4<f32>(-dq.x.xyz, dq.x.w);
+	let lhs = dq[1] * 2.0;
+	let rhs = vec4<f32>(-dq[0].xyz, dq[0].w);
 	let product = q_mul(lhs, rhs);
 
 	let m41_m42_m43 = product.xyz;
