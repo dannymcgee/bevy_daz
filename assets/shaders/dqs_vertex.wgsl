@@ -26,6 +26,13 @@ fn dq_add(lhs: mat2x4<f32>, rhs: mat2x4<f32>) -> mat2x4<f32> {
 	);
 }
 
+fn q_mul(lhs: vec4<f32>, rhs: vec4<f32>) -> vec4<f32> {
+	let w = (lhs.w * rhs.w) - dot(lhs.xyz, rhs.xyz);
+	let xyz = (lhs.w * rhs.xyz) + (rhs.w * lhs.xyz) + cross(lhs.xyz, rhs.xyz);
+
+	return vec4<f32>(xyz, w);
+}
+
 fn mat4x4_from_dq(dq: mat2x4<f32>) -> mat4x4<f32> {
 	// Convert the "real" quaternion to a 3x3 rotation matrix
 	let rotation = normalize(dq.x);
@@ -49,7 +56,11 @@ fn mat4x4_from_dq(dq: mat2x4<f32>) -> mat4x4<f32> {
 	let m31_m32_m33 = vec3<f32>(xz+wy, yz-wx, 1.0-(xx+yy));
 
 	// Extract translation vector from the dual-quat
-	let m41_m42_m43 = ((dq.y * 2.0) * vec4<f32>(-dq.x.xyz, dq.x.w)).xyz;
+	let lhs = dq.y * 2.0;
+	let rhs = vec4<f32>(-dq.x.xyz, dq.x.w);
+	let product = q_mul(lhs, rhs);
+
+	let m41_m42_m43 = product.xyz;
 
 	return mat4x4<f32>(
 		vec4<f32>(m11_m12_m13, 0.0),
